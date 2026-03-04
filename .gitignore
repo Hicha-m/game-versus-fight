@@ -2,3 +2,4 @@ _*
 .github
 .env
 build
+*.log
