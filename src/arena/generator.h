@@ -1,0 +1,4 @@
+#ifndef ARENA_GENERATOR_H
+#define ARENA_GENERATOR_H
+
+#endif
