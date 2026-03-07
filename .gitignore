@@ -2,4 +2,5 @@ _*
 .github
 .env
 build
+build-make
 *.log

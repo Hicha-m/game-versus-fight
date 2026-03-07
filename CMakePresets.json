@@ -1,0 +1,47 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 16,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "dev",
+      "displayName": "Dev Configure",
+      "description": "Portable configure preset for local development",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "build",
+      "displayName": "Build",
+      "configurePreset": "dev",
+      "configuration": "Debug"
+    },
+    {
+      "name": "run",
+      "displayName": "Build and Run",
+      "configurePreset": "dev",
+      "configuration": "Debug",
+      "targets": [
+        "run_game"
+      ]
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "test",
+      "displayName": "Test",
+      "configurePreset": "dev",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
