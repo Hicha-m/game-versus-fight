@@ -6,6 +6,8 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
+find_package(SDL3 REQUIRED CONFIG)
+
 add_library(game_core STATIC
     src/ai/ai.c
     src/ai/cache.c
@@ -66,6 +68,7 @@ add_executable(game_app
 )
 
 target_link_libraries(game_app PRIVATE game_core)
+target_link_libraries(game_core PUBLIC SDL3::SDL3)
 
 enable_testing()
 

@@ -27,7 +27,13 @@ static int test_game_destroy_and_error_string(void) {
 
 	TEST_ASSERT_EQ_INT(GAME_OK, game_destroy(&state));
 	TEST_ASSERT_TRUE(!state.running);
-	TEST_ASSERT_TRUE(game_error_string(GAME_OK) != NULL);
+	/* the string table should give the right text for each enum value */
+	TEST_ASSERT_EQ_STRING("ok", game_error_string(GAME_OK));
+	TEST_ASSERT_EQ_STRING("invalid argument",
+			     game_error_string(GAME_ERROR_INVALID_ARGUMENT));
+	/* an invalid enum (out of bounds) falls back to the unknown message */
+	TEST_ASSERT_EQ_STRING("unknown error",
+			     game_error_string((GameError)0xdead));
 	return 0;
 }
 

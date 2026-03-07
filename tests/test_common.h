@@ -2,6 +2,7 @@
 #define TEST_COMMON_H
 
 #include <stdio.h>
+#include <string.h>
 
 typedef int (*TestFunc)(void);
 
@@ -26,6 +27,17 @@ do {                                                                          		
 		if (_exp != _act) {                                                            \
 			fprintf(stderr, "Assertion failed: expected %d got %d (%s:%d)\n", _exp,    \
 			        _act, __FILE__, __LINE__);                                         \
+			return 1;                                                                  \
+		}                                                                              \
+	} while (0)
+
+#define TEST_ASSERT_EQ_STRING(expected, actual)                                      \
+	do {                                                                               \
+		const char *_exp = (expected);                                                 \
+		const char *_act = (actual);                                                   \
+		if (_exp == NULL || _act == NULL || strcmp(_exp, _act) != 0) {               \
+			fprintf(stderr, "Assertion failed: expected '%s' got '%s' (%s:%d)\n",      \
+			        _exp ? _exp : "(null)", _act ? _act : "(null)", __FILE__, __LINE__); \
 			return 1;                                                                  \
 		}                                                                              \
 	} while (0)
