@@ -2,11 +2,11 @@
 #define ENGINE_H
 
 #include "types.h"
+#include <SDL3/SDL.h>
 
-GameError engine_init(GameState *state, const GameConfig *config);
-GameError engine_apply_frame_input(GameState *state, const FrameInput *input);
-GameError engine_simulate_frame(GameState *state);
-GameError engine_tick(GameState *state, const FrameInput *input);
-GameError engine_shutdown(GameState *state);
+
+GameError engine_init(void);
+GameError engine_shutdown(void);
+SDL_Renderer *engine_renderer_get(void);
 
 #endif

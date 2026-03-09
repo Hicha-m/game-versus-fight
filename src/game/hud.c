@@ -1,60 +1,24 @@
-#include "ui.h"
+#include "hud.h"
+#include "engine.h"
 
 #include <SDL3/SDL.h>
 
-static SDL_Window *s_window = NULL;
-static SDL_Renderer *s_renderer = NULL;
-
-SDL_Renderer *ui_renderer_get(void) {
-	return s_renderer;
-}
-
-GameError ui_init(void) {
-	if (!SDL_Init(SDL_INIT_VIDEO)) {
-		SDL_Log("SDL_Init failed: %s", SDL_GetError());
-		return GAME_ERROR_INTERNAL;
-	}
-
-	s_window = SDL_CreateWindow("Blade Rush", 1280, 720, 0);
-	if (s_window == NULL) {
-		SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
-		SDL_Quit();
-		return GAME_ERROR_INTERNAL;
-	}
-
-	s_renderer = SDL_CreateRenderer(s_window, NULL);
-	if (s_renderer == NULL) {
-		SDL_Log("SDL_CreateRenderer failed: %s", SDL_GetError());
-		SDL_DestroyWindow(s_window);
-		s_window = NULL;
-		SDL_Quit();
-		return GAME_ERROR_INTERNAL;
-	}
-
-	return GAME_OK;
-}
-GameError ui_render_hud(const GameState *state) {
-	if (state == NULL || s_renderer == NULL) {
+GameError hud_render(const GameState *state) {
+	if (state == NULL) {
 		return GAME_ERROR_INVALID_ARGUMENT;
 	}
 
-	SDL_SetRenderDrawColor(s_renderer, 20, 24, 32, 255);
-	SDL_RenderClear(s_renderer);
+	SDL_Renderer *renderer = engine_renderer_get();
+	if (renderer == NULL) return GAME_ERROR_INVALID_STATE;
 
-	SDL_RenderPresent(s_renderer);
-	return GAME_OK;
-}
 
-GameError ui_shutdown(void) {
-	if (s_renderer != NULL) {
-		SDL_DestroyRenderer(s_renderer);
-		s_renderer = NULL;
-	}
-	if (s_window != NULL) {
-		SDL_DestroyWindow(s_window);
-		s_window = NULL;
-	}
-	SDL_Quit();
+	/*
+	SDL_SetRenderDrawColor(renderer, 24, 36, 56, 255);
+	SDL_FRect frame = {180.0f, 100.0f, 920.0f, 520.0f};
+	SDL_RenderFillRect(renderer, &frame);
+	TO DO
+	*/
+
 
 	return GAME_OK;
 }

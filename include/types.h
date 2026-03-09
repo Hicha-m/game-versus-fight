@@ -30,6 +30,17 @@ typedef enum DifficultyLevel {
 	DIFFICULTY_EXPERT
 } DifficultyLevel;
 
+typedef enum GamePhase {
+    GAME_PHASE_BOOT,
+    GAME_PHASE_PRESS_START,
+    GAME_PHASE_MAIN_MENU,
+    GAME_PHASE_MODE_SELECT,
+    GAME_PHASE_MATCH,
+    GAME_PHASE_GAME_OVER,
+    GAME_PHASE_QUIT
+} GamePhase;
+
+
 typedef enum MatchPhase {
 	MATCH_PHASE_MENU,
 	MATCH_PHASE_COUNTDOWN,
@@ -139,9 +150,12 @@ typedef struct GameConfig {
 } GameConfig;
 
 typedef struct GameState {
+	GamePhase game_phase;     // état global
+    MatchPhase match_phase;   // valide seulement si game_phase == GAME_PHASE_MATCH
+	
 	Arena arena;
 	CombatState combat;
-	MatchPhase phase;
+
 	DifficultyLevel ai_difficulty;
 	uint64_t frame_index;
 	uint32_t rng_state;

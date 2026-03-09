@@ -1,22 +1,21 @@
-#include "ui.h"
+#include "menu.h"
+#include "engine.h"
 
 #include <SDL3/SDL.h>
 
-SDL_Renderer *ui_renderer_get(void);
 
-GameError ui_render_menu(const GameState *state) {
+GameError menu_render(const GameState *state) {
 	if (state == NULL) {
 		return GAME_ERROR_INVALID_ARGUMENT;
 	}
 
-	SDL_Renderer *renderer = ui_renderer_get();
-	if (renderer == NULL) {
-		return GAME_ERROR_INVALID_STATE;
-	}
+	SDL_Renderer *renderer = engine_renderer_get();
+	if (renderer == NULL) return GAME_ERROR_INVALID_STATE;
 
-	SDL_SetRenderDrawColor(renderer, 20, 24, 32, 255);
-	SDL_RenderClear(renderer);
-
-	SDL_RenderPresent(renderer);
+    // Exemple : fond bleu du menu
+    SDL_SetRenderDrawColor(renderer, 40, 60, 120, 255);
+    SDL_FRect r = { 0, 0, 1280, 720 };
+    SDL_RenderFillRect(renderer, &r);
+	
 	return GAME_OK;
 }

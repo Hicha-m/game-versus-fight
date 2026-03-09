@@ -1,43 +1,50 @@
 #include "engine.h"
+#include <SDL3/SDL.h>
 
-GameError engine_init(GameState *state, const GameConfig *config) {
-	if (state != NULL) {
-		state->phase = MATCH_PHASE_MENU;
-		state->frame_index = 0;
-		state->running = true;
-		if (config != NULL) {
-			state->ai_difficulty = config->ai_difficulty;
-		}
+static SDL_Window *s_window = NULL;
+static SDL_Renderer *s_renderer = NULL;
+
+SDL_Renderer *engine_renderer_get(void) {
+	return s_renderer;
+}
+
+GameError engine_init() {
+	
+	if (!SDL_Init(SDL_INIT_VIDEO)) {
+		SDL_Log("SDL_Init failed: %s", SDL_GetError());
+		return GAME_ERROR_INTERNAL;
+	}
+	
+	s_window = SDL_CreateWindow("Blade Rush", 1280, 720, 0);
+	if (s_window == NULL) {
+		SDL_Log("SDL_CreateWindow failed: %s", SDL_GetError());
+		SDL_Quit();
+		return GAME_ERROR_INTERNAL;
+	}
+
+	s_renderer = SDL_CreateRenderer(s_window, NULL);
+	if (s_renderer == NULL) {
+		SDL_Log("SDL_CreateRenderer failed: %s", SDL_GetError());
+		SDL_DestroyWindow(s_window);
+		s_window = NULL;
+		SDL_Quit();
+		return GAME_ERROR_INTERNAL;
 	}
 	return GAME_OK;
 }
 
-GameError engine_apply_frame_input(GameState *state, const FrameInput *input) {
-	(void)input;
-	if (state != NULL) {
-		state->running = true;
-	}
-	return GAME_OK;
-}
+GameError engine_shutdown() {
 
-GameError engine_simulate_frame(GameState *state) {
-	if (state != NULL) {
-		state->frame_index++;
+	if (s_renderer != NULL) {
+		SDL_DestroyRenderer(s_renderer);
+		s_renderer = NULL;
 	}
-	return GAME_OK;
-}
-
-GameError engine_tick(GameState *state, const FrameInput *input) {
-	(void)input;
-	if (state != NULL) {
-		state->frame_index++;
+	if (s_window != NULL) {
+		SDL_DestroyWindow(s_window);
+		s_window = NULL;
 	}
-	return GAME_OK;
-}
-
-GameError engine_shutdown(GameState *state) {
-	if (state != NULL) {
-		state->running = false;
-	}
+	SDL_Quit();
+		
+	
 	return GAME_OK;
 }
