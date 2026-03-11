@@ -14,4 +14,10 @@
 #define SWORD_REACH_BONUS 1.1f
 #define PARRIES_FOR_SWORD_EVOLUTION 3U
 
+/* Visual constants — 16×12 tile arena fills the 1280×720 window */
+#define ARENA_TILE_W  80
+#define ARENA_TILE_H  60
+#define FIGHTER_W     40
+#define FIGHTER_H     72
+
 #endif
