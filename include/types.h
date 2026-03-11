@@ -111,6 +111,7 @@ typedef struct PlayerCommand {
 typedef struct FrameInput {
 	PlayerCommand commands[2];
 	bool pause_pressed;
+	bool start_pressed;
 	bool quit_requested;
 } FrameInput;
 

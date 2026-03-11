@@ -23,13 +23,15 @@ static int test_combat_step_increments_round_time(void) {
 	return 0;
 }
 
-static int test_combat_is_round_over_mock_behavior(void) {
+static int test_combat_is_round_over_both_alive(void) {
 	CombatState combat = {0};
-	PlayerId winner = PLAYER_TWO;
+	combat.duel_active = true;
+	combat.fighters[PLAYER_ONE].alive = true;
+	combat.fighters[PLAYER_TWO].alive = true;
 
+	PlayerId winner = PLAYER_TWO;
 	bool over = combat_is_round_over(&combat, &winner);
 	TEST_ASSERT_TRUE(!over);
-	TEST_ASSERT_EQ_INT(PLAYER_ONE, winner);
 	return 0;
 }
 
@@ -37,7 +39,7 @@ int run_combat_tests(void) {
 	TestCase cases[] = {
 		{"init_sets_defaults", test_combat_init_sets_defaults},
 		{"step_increments_round_time", test_combat_step_increments_round_time},
-		{"is_round_over_mock_behavior", test_combat_is_round_over_mock_behavior},
+		{"is_round_over_both_alive", test_combat_is_round_over_both_alive},
 	};
 
 	return run_test_cases("combat", cases, (int)(sizeof(cases) / sizeof(cases[0])));

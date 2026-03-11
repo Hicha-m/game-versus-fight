@@ -5,6 +5,8 @@
 
 #include "types.h"
 
+Action ai_get_action(const GameState *state, DifficultyLevel difficulty);
+
 // MinMax with Alpha-Beta Pruning
 GameError ai_choose_action(const GameState *state, PlayerId actor, uint32_t budget_us, Action *out_action);
 //heuristic of scoring
