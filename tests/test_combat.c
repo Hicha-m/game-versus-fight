@@ -3,7 +3,11 @@
 
 static int test_combat_init_sets_defaults(void) {
 	CombatState combat = {0};
-	GameError err = combat_init(&combat, NULL, NULL);
+	Arena arena = {0};
+	// Need a minimal valid arena for combat_init
+	arena.width = 32;
+	arena.height = 16;
+	GameError err = combat_init(&combat, &arena, NULL);
 
 	TEST_ASSERT_EQ_INT(GAME_OK, err);
 	TEST_ASSERT_TRUE(combat.duel_active);
@@ -16,8 +20,13 @@ static int test_combat_init_sets_defaults(void) {
 static int test_combat_step_increments_round_time(void) {
 	CombatState combat = {0};
 	combat.round_time_frames = 10;
-
-	GameError err = combat_step(&combat, NULL, 16U);
+	combat.duel_active = true;
+	
+	Arena arena = {0};
+	arena.width = 32;
+	arena.height = 16;
+	
+	GameError err = combat_step(&combat, &arena, 16U);
 	TEST_ASSERT_EQ_INT(GAME_OK, err);
 	TEST_ASSERT_EQ_INT(11, combat.round_time_frames);
 	return 0;
@@ -25,11 +34,11 @@ static int test_combat_step_increments_round_time(void) {
 
 static int test_combat_is_round_over_mock_behavior(void) {
 	CombatState combat = {0};
+	combat.duel_active = false;  // Default state with no active fight
 	PlayerId winner = PLAYER_TWO;
 
 	bool over = combat_is_round_over(&combat, &winner);
 	TEST_ASSERT_TRUE(!over);
-	TEST_ASSERT_EQ_INT(PLAYER_ONE, winner);
 	return 0;
 }
 

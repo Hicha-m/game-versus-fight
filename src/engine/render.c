@@ -18,7 +18,7 @@ void render_end(void) {
     SDL_RenderPresent(renderer);
 }
 
-GameError render_frame(const GameState *state) {
+GameError render_frame(const GameState *state, float interpolation_factor) {
     if (state == NULL) return GAME_ERROR_INVALID_ARGUMENT;
 
     render_begin();
@@ -32,7 +32,7 @@ GameError render_frame(const GameState *state) {
             break;
 
         case GAME_PHASE_MATCH:
-            render_world(state);
+            render_world(state, interpolation_factor);
             hud_render(state);
             break;
 
@@ -44,8 +44,9 @@ GameError render_frame(const GameState *state) {
     return GAME_OK;
 }
 
-GameError render_world(const GameState *state) {
+GameError render_world(const GameState *state, float interpolation_factor) {
     (void)state;
     // TODO: dessiner l’arène + les fighters
-    return GAME_OK;
+    (void)interpolation_factor;
+    // TODO: dessiner larene + les fighters avec interpolation
 }

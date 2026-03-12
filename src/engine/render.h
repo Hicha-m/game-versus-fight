@@ -5,6 +5,11 @@
 
 void render_begin();
 void render_end();
-GameError render_frame(const GameState *state);
-GameError render_world(const GameState *state);
+
+/**
+ * Renders a frame with interpolation
+ * interpolation_factor: [0.0, 1.0] - how far into next frame (for smooth rendering at high FPS)
+ */
+GameError render_frame(const GameState *state, float interpolation_factor);
+GameError render_world(const GameState *state, float interpolation_factor);
 #endif

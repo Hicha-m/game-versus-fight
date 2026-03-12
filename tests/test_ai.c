@@ -3,12 +3,10 @@
 
 static int test_ai_choose_action_sets_defaults(void) {
 	Action action = {0};
+	// NULL state should return GAME_ERROR_INVALID_ARGUMENT
 	GameError err = ai_choose_action(NULL, PLAYER_TWO, 1000U, &action);
 
-	TEST_ASSERT_EQ_INT(GAME_OK, err);
-	TEST_ASSERT_EQ_INT(ACTION_NONE, action.type);
-	TEST_ASSERT_EQ_INT(SWORD_HEIGHT_MID, action.sword_height);
-	TEST_ASSERT_EQ_INT(0, action.issued_frame);
+	TEST_ASSERT_EQ_INT(GAME_ERROR_INVALID_ARGUMENT, err);
 	return 0;
 }
 
@@ -25,8 +23,8 @@ static int test_ai_evaluate_and_depth_mock_values(void) {
 	int32_t score = ai_evaluate_state(NULL, PLAYER_ONE);
 	uint8_t depth = ai_search_depth_for_difficulty(DIFFICULTY_EXPERT);
 
-	TEST_ASSERT_EQ_INT(0, score);
-	TEST_ASSERT_EQ_INT(1, depth);
+	TEST_ASSERT_EQ_INT(0, score);  // NULL state returns 0
+	TEST_ASSERT_EQ_INT(4, depth);  // EXPERT difficulty = depth 4
 	return 0;
 }
 

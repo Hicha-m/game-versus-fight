@@ -68,7 +68,7 @@ add_executable(game_app
 )
 
 target_link_libraries(game_app PRIVATE game_core)
-target_link_libraries(game_core PUBLIC SDL3::SDL3)
+target_link_libraries(game_core PUBLIC SDL3::SDL3 m)
 
 enable_testing()
 

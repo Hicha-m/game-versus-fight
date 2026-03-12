@@ -9,7 +9,8 @@ static int test_arena_generate_sets_basic_fields(void) {
 	TEST_ASSERT_EQ_INT(32, arena.width);
 	TEST_ASSERT_EQ_INT(12, arena.height);
 	TEST_ASSERT_EQ_INT(42, arena.seed);
-	TEST_ASSERT_TRUE(arena.tiles == NULL);
+	TEST_ASSERT_TRUE(arena.tiles != NULL);  // Real implementation allocates tiles
+	arena_destroy(&arena);  // Clean up
 	return 0;
 }
 
@@ -17,7 +18,7 @@ static int test_arena_get_tile_returns_empty_in_mock(void) {
 	GameError err = GAME_ERROR_INTERNAL;
 	TileType tile = arena_get_tile(NULL, 0U, 0U, &err);
 
-	TEST_ASSERT_EQ_INT(GAME_OK, err);
+	TEST_ASSERT_EQ_INT(GAME_OK, err);  // NULL arena returns GAME_OK with TILE_EMPTY
 	TEST_ASSERT_EQ_INT(TILE_EMPTY, tile);
 	return 0;
 }
@@ -26,7 +27,7 @@ static int test_arena_find_spawn_returns_origin_in_mock(void) {
 	Vec2i spawn = {-1, -1};
 	bool found = arena_find_spawn(NULL, PLAYER_ONE, &spawn);
 
-	TEST_ASSERT_TRUE(found);
+	TEST_ASSERT_TRUE(found);  // NULL arena returns safe defaults
 	TEST_ASSERT_EQ_INT(0, spawn.x);
 	TEST_ASSERT_EQ_INT(0, spawn.y);
 	return 0;
