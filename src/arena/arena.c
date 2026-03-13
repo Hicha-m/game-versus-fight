@@ -106,20 +106,20 @@ void arena_generation_options_defaults(ArenaGenerationOptions *options, Archetyp
 
 	switch (archetype) {
 	case ARCHETYPE_SMALL:
-		options->platform_density = 55;
+		options->platform_density = 42;
 		options->hazard_count = 1;
 		options->hole_count = 1;
 		options->hole_max_width = 2;
 		break;
 	case ARCHETYPE_LARGE:
-		options->platform_density = 28;
+		options->platform_density = 24;
 		options->hazard_count = 4;
 		options->hole_count = 3;
 		options->hole_max_width = 3;
 		break;
 	case ARCHETYPE_MEDIUM:
 	default:
-		options->platform_density = 36;
+		options->platform_density = 30;
 		options->hazard_count = 2;
 		options->hole_count = 2;
 		options->hole_max_width = 2;

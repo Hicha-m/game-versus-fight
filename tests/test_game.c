@@ -449,6 +449,74 @@ static int test_priority_owner_can_advance_segment_while_both_players_are_alive(
 	return 0;
 }
 
+static int test_running_fighter_cannot_block_same_height_thrust(void) {
+	GameState state = {0};
+	GameConfig config = {
+		.arena_width = ARENA_DEFAULT_WIDTH,
+		.arena_height = ARENA_DEFAULT_HEIGHT,
+		.game_mode = GAME_MODE_VERSUS,
+		.ai_difficulty = DIFFICULTY_NORMAL,
+		.max_round_time_seconds = DEFAULT_ROUND_TIME_SECONDS,
+	};
+	FrameInput input = {0};
+
+	TEST_ASSERT_EQ_INT(GAME_OK, game_create(&config, &state));
+	state.rng_state = 6;
+	TEST_ASSERT_EQ_INT(GAME_OK, match_start(&state));
+	state.match_phase = MATCH_PHASE_FIGHT;
+
+	setup_duel_positions(&state);
+	state.combat.fighters[PLAYER_ONE].sword_height = SWORD_HEIGHT_MID;
+	state.combat.fighters[PLAYER_TWO].sword_height = SWORD_HEIGHT_MID;
+	state.combat.fighters[PLAYER_TWO].grounded = true;
+	state.combat.fighters[PLAYER_TWO].velocity.x = 6.0f;
+
+	input.commands[PLAYER_ONE].target_height = SWORD_HEIGHT_MID;
+	input.commands[PLAYER_TWO].target_height = SWORD_HEIGHT_MID;
+	input.commands[PLAYER_ONE].attack = true;
+	input.commands[PLAYER_TWO].move_axis = 1;
+
+	TEST_ASSERT_EQ_INT(GAME_OK, match_update(&state, &input));
+	TEST_ASSERT_TRUE(!state.combat.fighters[PLAYER_TWO].alive);
+
+	TEST_ASSERT_EQ_INT(GAME_OK, game_destroy(&state));
+	return 0;
+}
+
+static int test_same_height_single_thrust_causes_knockback(void) {
+	GameState state = {0};
+	GameConfig config = {
+		.arena_width = ARENA_DEFAULT_WIDTH,
+		.arena_height = ARENA_DEFAULT_HEIGHT,
+		.game_mode = GAME_MODE_VERSUS,
+		.ai_difficulty = DIFFICULTY_NORMAL,
+		.max_round_time_seconds = DEFAULT_ROUND_TIME_SECONDS,
+	};
+	FrameInput input = {0};
+
+	TEST_ASSERT_EQ_INT(GAME_OK, game_create(&config, &state));
+	state.rng_state = 7;
+	TEST_ASSERT_EQ_INT(GAME_OK, match_start(&state));
+	state.match_phase = MATCH_PHASE_FIGHT;
+
+	setup_duel_positions(&state);
+	state.combat.fighters[PLAYER_ONE].sword_height = SWORD_HEIGHT_HIGH;
+	state.combat.fighters[PLAYER_TWO].sword_height = SWORD_HEIGHT_HIGH;
+
+	input.commands[PLAYER_ONE].target_height = SWORD_HEIGHT_HIGH;
+	input.commands[PLAYER_TWO].target_height = SWORD_HEIGHT_HIGH;
+	input.commands[PLAYER_ONE].attack = true;
+
+	TEST_ASSERT_EQ_INT(GAME_OK, match_update(&state, &input));
+	TEST_ASSERT_TRUE(state.combat.fighters[PLAYER_ONE].alive);
+	TEST_ASSERT_TRUE(state.combat.fighters[PLAYER_TWO].alive);
+	TEST_ASSERT_TRUE(state.combat.fighters[PLAYER_ONE].velocity.x < 0.0f);
+	TEST_ASSERT_TRUE(state.combat.fighters[PLAYER_TWO].velocity.x > 0.0f);
+
+	TEST_ASSERT_EQ_INT(GAME_OK, game_destroy(&state));
+	return 0;
+}
+
 int run_game_tests(void) {
 	TestCase cases[] = {
 		{"create_initializes_state", test_game_create_initializes_state},
@@ -465,6 +533,8 @@ int run_game_tests(void) {
 		{"small_saved_map_does_not_end_round_immediately", test_small_saved_map_does_not_end_round_immediately},
 		{"round_timeout_uses_configured_limit", test_round_timeout_uses_configured_limit},
 		{"priority_owner_can_advance_segment_while_both_players_are_alive", test_priority_owner_can_advance_segment_while_both_players_are_alive},
+		{"running_fighter_cannot_block_same_height_thrust", test_running_fighter_cannot_block_same_height_thrust},
+		{"same_height_single_thrust_causes_knockback", test_same_height_single_thrust_causes_knockback},
 		{"destroy_and_error_string", test_game_destroy_and_error_string},
 	};
 

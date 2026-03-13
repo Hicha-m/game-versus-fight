@@ -2,6 +2,7 @@
 
 #include "arena.h"
 #include "constants.h"
+#include "engine/audio.h"
 #include "game/config.h"
 #include "game/match.h"
 
@@ -13,7 +14,7 @@
 
 #define MAIN_MENU_ITEM_COUNT 4U
 #define MAP_MENU_ITEM_COUNT 3U
-#define MAP_GENERATE_ITEM_COUNT 10U
+#define MAP_GENERATE_ITEM_COUNT 12U
 #define MODE_MENU_ITEM_COUNT 6U
 #define MAP_RESULTS_PAGE_SIZE 8U
 
@@ -27,6 +28,8 @@ static uint8_t map_results_item_count(const GameState *state) {
 	}
 	return (uint8_t)(state->menu.saved_map_filtered_count + 1U);
 }
+
+static void generate_preview_map(GameState *state);
 
 static bool contains_case_insensitive(const char *text, const char *needle) {
 	if (needle == NULL || needle[0] == '\0') {
@@ -407,6 +410,7 @@ static void handle_map_menu(GameState *state, const FrameInput *input) {
 	}
 
 	if (state->menu.map_menu_index == 0U) {
+		generate_preview_map(state);
 		state->game_phase = GAME_PHASE_MAP_GENERATE;
 		return;
 	}
@@ -449,7 +453,7 @@ static void apply_archetype_preset(GameState *state) {
 	}
 }
 
-static void generate_and_save_map(GameState *state) {
+static void generate_preview_map(GameState *state) {
 	ArenaGenerationOptions options = {
 		.archetype = state->menu.generate_archetype,
 		.platform_density = state->menu.generate_platform_density,
@@ -470,26 +474,44 @@ static void generate_and_save_map(GameState *state) {
 		state->menu.generate_seed = state->rng_state + (uint32_t)state->frame_index + 13U;
 	}
 
-	Arena generated = {0};
-	GameError err = arena_generate_with_options(&generated,
+	arena_destroy(&state->menu.map_preview);
+	GameError err = arena_generate_with_options(&state->menu.map_preview,
 		state->menu.generate_width,
 		state->menu.generate_height,
 		state->menu.generate_seed,
 		&options);
 	if (err != GAME_OK) {
+		state->menu.map_preview_loaded = false;
+		state->menu.map_preview_name[0] = '\0';
 		set_status(state, "Generation failed");
+		return;
+	}
+
+	state->menu.map_preview_loaded = true;
+	snprintf(state->menu.map_preview_name,
+		sizeof(state->menu.map_preview_name),
+		"preview_%s_%ux%u_s%u",
+		config_archetype_label(state->menu.generate_archetype),
+		(unsigned)state->menu.map_preview.width,
+		(unsigned)state->menu.map_preview.height,
+		(unsigned)state->menu.map_preview.seed);
+	set_status(state, "Preview generated");
+}
+
+static void generate_and_save_map(GameState *state) {
+	generate_preview_map(state);
+	if (!state->menu.map_preview_loaded || state->menu.map_preview.tiles == NULL) {
 		return;
 	}
 
 	char map_name[MENU_MAX_SAVED_MAP_NAME];
 	snprintf(map_name, sizeof(map_name), "%s_%ux%u_%u",
 		config_archetype_label(state->menu.generate_archetype),
-		(unsigned)generated.width,
-		(unsigned)generated.height,
-		(unsigned)generated.seed);
+		(unsigned)state->menu.map_preview.width,
+		(unsigned)state->menu.map_preview.height,
+		(unsigned)state->menu.map_preview.seed);
 
-	err = arena_save_to_file(&generated, map_name, state->menu.generate_archetype);
-	arena_destroy(&generated);
+	GameError err = arena_save_to_file(&state->menu.map_preview, map_name, state->menu.generate_archetype);
 	if (err != GAME_OK) {
 		set_status(state, "Save failed");
 		return;
@@ -533,18 +555,25 @@ static void handle_map_generate(GameState *state, const FrameInput *input) {
 			state->menu.generate_height = clamp_u16_range((uint16_t)((int)state->menu.generate_height + delta), MIN_ARENA_HEIGHT, MAX_ARENA_HEIGHT);
 			break;
 		case 3:
-			state->menu.generate_platform_density = clamp_u8_range((uint8_t)((int)state->menu.generate_platform_density + delta * 5), 5U, 90U);
+			if (delta < 0 && state->menu.generate_seed > 0U) {
+				state->menu.generate_seed--;
+			} else if (delta > 0) {
+				state->menu.generate_seed++;
+			}
 			break;
 		case 4:
-			state->menu.generate_hole_count = clamp_u8_range((uint8_t)((int)state->menu.generate_hole_count + delta), 0U, 8U);
+			state->menu.generate_platform_density = clamp_u8_range((uint8_t)((int)state->menu.generate_platform_density + delta * 5), 5U, 90U);
 			break;
 		case 5:
-			state->menu.generate_hole_max_width = clamp_u8_range((uint8_t)((int)state->menu.generate_hole_max_width + delta), 1U, 6U);
+			state->menu.generate_hole_count = clamp_u8_range((uint8_t)((int)state->menu.generate_hole_count + delta), 0U, 8U);
 			break;
 		case 6:
-			state->menu.generate_hazard_count = clamp_u8_range((uint8_t)((int)state->menu.generate_hazard_count + delta), 0U, 12U);
+			state->menu.generate_hole_max_width = clamp_u8_range((uint8_t)((int)state->menu.generate_hole_max_width + delta), 1U, 6U);
 			break;
 		case 7:
+			state->menu.generate_hazard_count = clamp_u8_range((uint8_t)((int)state->menu.generate_hazard_count + delta), 0U, 12U);
+			break;
+		case 8:
 			state->menu.generate_force_symmetry = !state->menu.generate_force_symmetry;
 			break;
 		default:
@@ -561,11 +590,15 @@ static void handle_map_generate(GameState *state, const FrameInput *input) {
 		return;
 	}
 
-	if (state->menu.map_generate_index == 8U) {
+	if (state->menu.map_generate_index == 9U) {
+		generate_preview_map(state);
+		return;
+	}
+	if (state->menu.map_generate_index == 10U) {
 		generate_and_save_map(state);
 		return;
 	}
-	if (state->menu.map_generate_index == 9U) {
+	if (state->menu.map_generate_index == 11U) {
 		state->game_phase = GAME_PHASE_MAP_MENU;
 		return;
 	}
@@ -941,6 +974,13 @@ GameError game_update(GameState *state, const FrameInput *input) {
 		return GAME_OK;
 	}
 
+	if (state->game_phase != GAME_PHASE_MATCH && input->menu_confirm_pressed) {
+		audio_play_sfx(AUDIO_SFX_MENU_CONFIRM);
+	}
+	if (state->game_phase != GAME_PHASE_MATCH && input->menu_back_pressed) {
+		audio_play_sfx(AUDIO_SFX_MENU_BACK);
+	}
+
 	switch (state->game_phase) {
 	case GAME_PHASE_BOOT:
 		state->game_phase = GAME_PHASE_PRESS_START;
@@ -954,6 +994,7 @@ GameError game_update(GameState *state, const FrameInput *input) {
 		}
 		state->menu.press_start_armed = true;
 		if (state->menu.press_start_armed && (input->menu_confirm_pressed || input->any_key_pressed)) {
+			audio_play_sfx(AUDIO_SFX_MENU_CONFIRM);
 			state->game_phase = GAME_PHASE_MAIN_MENU;
 		}
 		break;

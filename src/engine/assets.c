@@ -1,0 +1,133 @@
+#include "assets.h"
+#include "animation.h"
+#include "sdl3_image_compat.h"
+
+#include <stdio.h>
+#include <string.h>
+
+#define PATH_BUFFER_SIZE 512
+
+static SDL_Renderer *s_renderer = NULL;
+static SDL_Texture *s_textures[ASSET_TEX_COUNT] = {0};
+
+#if GAME_HAS_SDL3_IMAGE
+static const char *texture_rel_paths[ASSET_TEX_COUNT] = {
+	"assets/texture/Backgrounds/bForest_0.png",
+	"assets/sprites/sManNoWeaponStand/sManNoWeaponStand_0.png",
+	"assets/sprites/sSword/sSword_0.png"
+};
+#endif
+
+#if !GAME_HAS_SDL3_IMAGE
+static const char *texture_rel_paths_bmp[ASSET_TEX_COUNT] = {
+	"assets/texture/Backgrounds/bForest_0.bmp",
+	"assets/sprites/sManNoWeaponStand/sManNoWeaponStand_0.bmp",
+	"assets/sprites/sSword/sSword_0.bmp"
+};
+#endif
+
+static bool file_exists(const char *path) {
+	if (path == NULL) {
+		return false;
+	}
+	FILE *file = fopen(path, "rb");
+	if (file == NULL) {
+		return false;
+	}
+	fclose(file);
+	return true;
+}
+
+static bool resolve_asset_path(const char *relative_path, char *out_path, size_t out_size) {
+	if (relative_path == NULL || out_path == NULL || out_size == 0U) {
+		return false;
+	}
+
+	const char *prefixes[] = {
+		"",
+		"../",
+		"../../"
+	};
+
+	for (size_t i = 0; i < sizeof(prefixes) / sizeof(prefixes[0]); ++i) {
+		snprintf(out_path, out_size, "%s%s", prefixes[i], relative_path);
+		if (file_exists(out_path)) {
+			return true;
+		}
+	}
+
+	out_path[0] = '\0';
+	return false;
+}
+
+static SDL_Texture *load_texture_from_path(const char *path) {
+	if (path == NULL || s_renderer == NULL) {
+		return NULL;
+	}
+
+#if GAME_HAS_SDL3_IMAGE
+	return IMG_LoadTexture(s_renderer, path);
+#else
+	SDL_Surface *surface = SDL_LoadBMP(path);
+	if (surface == NULL) {
+		return NULL;
+	}
+
+	SDL_Texture *texture = SDL_CreateTextureFromSurface(s_renderer, surface);
+	SDL_DestroySurface(surface);
+	return texture;
+#endif
+}
+
+GameError assets_init(SDL_Renderer *renderer) {
+	if (renderer == NULL) {
+		return GAME_ERROR_INVALID_ARGUMENT;
+	}
+
+	s_renderer = renderer;
+	for (int i = 0; i < (int)ASSET_TEX_COUNT; ++i) {
+		s_textures[i] = NULL;
+	}
+
+	for (int i = 0; i < (int)ASSET_TEX_COUNT; ++i) {
+		char path[PATH_BUFFER_SIZE] = {0};
+
+#if GAME_HAS_SDL3_IMAGE
+		if (!resolve_asset_path(texture_rel_paths[i], path, sizeof(path))) {
+			SDL_Log("assets_init: missing texture '%s'", texture_rel_paths[i]);
+			continue;
+		}
+#else
+		if (!resolve_asset_path(texture_rel_paths_bmp[i], path, sizeof(path))) {
+			SDL_Log("assets_init: missing BMP fallback '%s'", texture_rel_paths_bmp[i]);
+			continue;
+		}
+#endif
+
+		s_textures[i] = load_texture_from_path(path);
+		if (s_textures[i] == NULL) {
+			SDL_Log("assets_init: failed loading texture '%s': %s", path, SDL_GetError());
+		}
+	}
+
+	(void)animation_init(renderer);
+	return GAME_OK;
+}
+
+void assets_shutdown(void) {
+	animation_shutdown();
+	for (int i = 0; i < (int)ASSET_TEX_COUNT; ++i) {
+		if (s_textures[i] != NULL) {
+			SDL_DestroyTexture(s_textures[i]);
+			s_textures[i] = NULL;
+		}
+	}
+	s_renderer = NULL;
+}
+
+SDL_Texture *assets_get_texture(AssetTextureId id) {
+	if (id < 0 || id >= ASSET_TEX_COUNT) {
+		return NULL;
+	}
+	return s_textures[id];
+}

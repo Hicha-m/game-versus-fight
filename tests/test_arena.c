@@ -3,6 +3,18 @@
 
 #include <string.h>
 
+static uint16_t count_tiles(const Arena *arena, TileType tile) {
+	uint16_t count = 0;
+	for (uint16_t y = 0; y < arena->height; ++y) {
+		for (uint16_t x = 0; x < arena->width; ++x) {
+			if (arena->tiles[y * arena->width + x] == tile) {
+				count++;
+			}
+		}
+	}
+	return count;
+}
+
 static int test_arena_generate_sets_basic_fields(void) {
 	Arena arena = {0};
 	GameError err = arena_generate(&arena, 32U, 12U, 42U);
@@ -89,12 +101,46 @@ static int test_arena_save_load_and_list_roundtrip(void) {
 	return 0;
 }
 
+static int test_arena_generation_changes_with_seed(void) {
+	Arena first = {0};
+	Arena second = {0};
+	ArenaGenerationOptions options;
+	arena_generation_options_defaults(&options, ARCHETYPE_MEDIUM);
+
+	TEST_ASSERT_EQ_INT(GAME_OK, arena_generate_with_options(&first, 120U, 18U, 1234U, &options));
+	TEST_ASSERT_EQ_INT(GAME_OK, arena_generate_with_options(&second, 120U, 18U, 9876U, &options));
+	TEST_ASSERT_TRUE(memcmp(first.tiles, second.tiles,
+		(size_t)first.width * first.height * sizeof(TileType)) != 0);
+
+	arena_destroy(&first);
+	arena_destroy(&second);
+	return 0;
+}
+
+static int test_arena_generation_limits_platform_count(void) {
+	Arena arena = {0};
+	ArenaGenerationOptions options;
+	uint16_t platform_count = 0;
+
+	arena_generation_options_defaults(&options, ARCHETYPE_MEDIUM);
+	TEST_ASSERT_EQ_INT(GAME_OK, arena_generate_with_options(&arena, 120U, 18U, 2026U, &options));
+
+	platform_count = count_tiles(&arena, TILE_PLATFORM);
+	TEST_ASSERT_TRUE(platform_count > 0U);
+	TEST_ASSERT_TRUE(platform_count <= arena.width);
+
+	arena_destroy(&arena);
+	return 0;
+}
+
 int run_arena_tests(void) {
 	TestCase cases[] = {
 		{"generate_sets_basic_fields", test_arena_generate_sets_basic_fields},
 		{"get_tile_returns_empty_in_mock", test_arena_get_tile_returns_empty_in_mock},
 		{"find_spawn_returns_origin_in_mock", test_arena_find_spawn_returns_origin_in_mock},
 		{"save_load_and_list_roundtrip", test_arena_save_load_and_list_roundtrip},
+		{"generation_changes_with_seed", test_arena_generation_changes_with_seed},
+		{"generation_limits_platform_count", test_arena_generation_limits_platform_count},
 	};
 
 	return run_test_cases("arena", cases, (int)(sizeof(cases) / sizeof(cases[0])));

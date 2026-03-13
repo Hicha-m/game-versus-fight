@@ -27,6 +27,8 @@ static void draw_line(SDL_Renderer *renderer, float x, float y, const char *text
 	SDL_RenderDebugText(renderer, x, y, text);
 }
 
+static void draw_map_preview(SDL_Renderer *renderer, const GameState *state, float x, float y, float w, float h);
+
 static void render_main_menu(SDL_Renderer *renderer, const GameState *state) {
 	const char *items[] = {"Start", "Map", "Options", "Quit"};
 	SDL_RenderDebugText(renderer, 80.0f, 88.0f, "BLADE RUSH");
@@ -82,21 +84,25 @@ static void render_map_generate(SDL_Renderer *renderer, const GameState *state) 
 	draw_line(renderer, 90.0f, 156.0f, buffer, state->menu.map_generate_index == 1);
 	snprintf(buffer, sizeof(buffer), "Height: %u", state->menu.generate_height);
 	draw_line(renderer, 90.0f, 182.0f, buffer, state->menu.map_generate_index == 2);
-	snprintf(buffer, sizeof(buffer), "Platform density: %u%%", state->menu.generate_platform_density);
+	snprintf(buffer, sizeof(buffer), "Seed: %u", state->menu.generate_seed);
 	draw_line(renderer, 90.0f, 208.0f, buffer, state->menu.map_generate_index == 3);
-	snprintf(buffer, sizeof(buffer), "Holes: %u", state->menu.generate_hole_count);
+	snprintf(buffer, sizeof(buffer), "Platform density: %u%%", state->menu.generate_platform_density);
 	draw_line(renderer, 90.0f, 234.0f, buffer, state->menu.map_generate_index == 4);
-	snprintf(buffer, sizeof(buffer), "Hole max width: %u", state->menu.generate_hole_max_width);
+	snprintf(buffer, sizeof(buffer), "Holes: %u", state->menu.generate_hole_count);
 	draw_line(renderer, 90.0f, 260.0f, buffer, state->menu.map_generate_index == 5);
-	snprintf(buffer, sizeof(buffer), "Hazards: %u", state->menu.generate_hazard_count);
+	snprintf(buffer, sizeof(buffer), "Hole max width: %u", state->menu.generate_hole_max_width);
 	draw_line(renderer, 90.0f, 286.0f, buffer, state->menu.map_generate_index == 6);
-	snprintf(buffer, sizeof(buffer), "Force symmetry: %s", state->menu.generate_force_symmetry ? "ON" : "OFF");
+	snprintf(buffer, sizeof(buffer), "Hazards: %u", state->menu.generate_hazard_count);
 	draw_line(renderer, 90.0f, 312.0f, buffer, state->menu.map_generate_index == 7);
-	draw_line(renderer, 90.0f, 350.0f, "Generate and Save", state->menu.map_generate_index == 8);
-	draw_line(renderer, 90.0f, 376.0f, "Back", state->menu.map_generate_index == 9);
+	snprintf(buffer, sizeof(buffer), "Force symmetry: %s", state->menu.generate_force_symmetry ? "ON" : "OFF");
+	draw_line(renderer, 90.0f, 338.0f, buffer, state->menu.map_generate_index == 8);
+	draw_line(renderer, 90.0f, 370.0f, "Generate Preview", state->menu.map_generate_index == 9);
+	draw_line(renderer, 90.0f, 396.0f, "Generate and Save", state->menu.map_generate_index == 10);
+	draw_line(renderer, 90.0f, 422.0f, "Back", state->menu.map_generate_index == 11);
 
-	SDL_RenderDebugText(renderer, 70.0f, 418.0f, "Use left/right arrows to tweak values.");
-	SDL_RenderDebugText(renderer, 70.0f, 442.0f, "Saved maps are stored in folder: saved_maps/");
+	SDL_RenderDebugText(renderer, 70.0f, 456.0f, "Use left/right arrows to tweak values.");
+	SDL_RenderDebugText(renderer, 70.0f, 480.0f, "Preview lets you inspect a generated map before saving.");
+	draw_map_preview(renderer, state, 760.0f, 120.0f, 450.0f, 440.0f);
 }
 
 static void draw_map_preview(SDL_Renderer *renderer, const GameState *state, float x, float y, float w, float h) {
@@ -257,6 +263,7 @@ GameError menu_render(const GameState *state) {
 
 	switch (state->game_phase) {
 	case GAME_PHASE_PRESS_START:
+		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 		SDL_RenderDebugText(renderer, 88.0f, 120.0f, "BLADE RUSH");
 		if (((state->frame_index / 30U) % 2U) == 0U) {
 			SDL_RenderDebugText(renderer, 88.0f, 164.0f, "PRESS ANY KEY TO START");

@@ -1,4 +1,6 @@
 #include "engine.h"
+#include "audio.h"
+#include "assets.h"
 #include <SDL3/SDL.h>
 
 static SDL_Window *s_window = NULL;
@@ -10,7 +12,7 @@ SDL_Renderer *engine_renderer_get(void) {
 
 GameError engine_init() {
 	
-	if (!SDL_Init(SDL_INIT_VIDEO)) {
+	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
 		SDL_Log("SDL_Init failed: %s", SDL_GetError());
 		return GAME_ERROR_INTERNAL;
 	}
@@ -30,12 +32,17 @@ GameError engine_init() {
 		SDL_Quit();
 		return GAME_ERROR_INTERNAL;
 	}
+
+	(void)assets_init(s_renderer);
+	(void)audio_init();
 	return GAME_OK;
 }
 
 GameError engine_shutdown() {
 
 	if (s_renderer != NULL) {
+		audio_shutdown();
+		assets_shutdown();
 		SDL_DestroyRenderer(s_renderer);
 		s_renderer = NULL;
 	}

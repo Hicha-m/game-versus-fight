@@ -165,6 +165,7 @@ typedef struct FighterState {
 	FacingDirection facing;
 	SwordHeight sword_height;
 	bool has_sword;
+	bool sword_ready;
 	uint16_t sword_recover_frames;
 	bool alive;
 	bool downed;

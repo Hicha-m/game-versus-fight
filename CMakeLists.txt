@@ -7,6 +7,32 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 find_package(SDL3 REQUIRED CONFIG)
+find_package(SDL3_image CONFIG QUIET)
+
+set(GAME_SDL3_IMAGE_ENABLED 0)
+set(GAME_SDL3_IMAGE_HEADER 0)
+set(GAME_SDL3_IMAGE_RUNTIME_LIB "")
+
+if(SDL3_image_FOUND)
+    set(GAME_SDL3_IMAGE_ENABLED 1)
+    set(GAME_SDL3_IMAGE_HEADER 1)
+else()
+    find_path(SDL3_IMAGE_INCLUDE_DIR
+        NAMES SDL3_image/SDL_image.h
+    )
+    if(SDL3_IMAGE_INCLUDE_DIR)
+        set(GAME_SDL3_IMAGE_HEADER 1)
+    endif()
+
+    find_library(SDL3_IMAGE_RUNTIME_LIB
+        NAMES SDL3_image SDL3_image.so.0 libSDL3_image.so.0
+        PATHS /usr/lib64 /lib64 /usr/lib /lib
+    )
+
+    if(SDL3_IMAGE_RUNTIME_LIB)
+        set(GAME_SDL3_IMAGE_ENABLED 1)
+    endif()
+endif()
 
 add_library(game_core STATIC
     src/ai/ai.c
@@ -30,6 +56,8 @@ add_library(game_core STATIC
     src/combat/sword.c
 
     src/engine/audio.c
+    src/engine/animation.c
+    src/engine/assets.c
     src/engine/debug.c
     src/engine/engine.c
     src/engine/input.c
@@ -69,6 +97,22 @@ add_executable(game_app
 
 target_link_libraries(game_app PRIVATE game_core)
 target_link_libraries(game_core PUBLIC SDL3::SDL3 m)
+
+if(SDL3_image_FOUND)
+    target_link_libraries(game_core PUBLIC SDL3_image::SDL3_image)
+elseif(GAME_SDL3_IMAGE_RUNTIME_LIB)
+    target_link_libraries(game_core PUBLIC ${GAME_SDL3_IMAGE_RUNTIME_LIB})
+endif()
+
+if(GAME_SDL3_IMAGE_ENABLED)
+    target_compile_definitions(game_core PUBLIC
+        GAME_HAS_SDL3_IMAGE=1
+        GAME_HAS_SDL3_IMAGE_HEADER=${GAME_SDL3_IMAGE_HEADER}
+    )
+else()
+    message(WARNING "SDL3_image not found: PNG textures disabled, using primitive fallback rendering")
+    target_compile_definitions(game_core PUBLIC GAME_HAS_SDL3_IMAGE=0)
+endif()
 
 enable_testing()
 

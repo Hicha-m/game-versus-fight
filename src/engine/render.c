@@ -1,5 +1,7 @@
 #include "render.h"
 #include "engine.h"
+#include "engine/assets.h"
+#include "engine/animation.h"
 #include "combat/sword.h"
 #include "constants.h"
 #include "game/menu.h"
@@ -47,6 +49,7 @@ static void segment_color(int segment, Uint8 *red, Uint8 *green, Uint8 *blue) {
 }
 
 static void draw_fighter(SDL_Renderer *renderer,
+                          int player_idx,
                           const FighterState *fighter,
                           Uint8 red,
                           Uint8 green,
@@ -66,30 +69,49 @@ static void draw_fighter(SDL_Renderer *renderer,
         return;
     }
 
-    SDL_SetRenderDrawColor(renderer, red, green, blue, 255);
-    SDL_FRect body = {px, py, PLAYER_WIDTH * tile_px, PLAYER_HEIGHT * tile_px};
-    SDL_RenderFillRect(renderer, &body);
+    /* Advance and render animated sprite */
+    animation_update(player_idx, fighter);
 
-    if (fighter->has_sword) {
-        SDL_SetRenderDrawColor(renderer, 230, 230, 180, 255);
-        float sword_y = py + sword_lane_offset(fighter->sword_height) * tile_px;
-        float sword_base_x = fighter->facing == FACING_RIGHT ? px + PLAYER_WIDTH * tile_px : px;
-        float sword_len = BASE_SWORD_REACH * tile_px;
-        float sword_tip_x = fighter->facing == FACING_RIGHT ? sword_base_x + sword_len : sword_base_x - sword_len;
-        float sword_left = sword_base_x < sword_tip_x ? sword_base_x : sword_tip_x;
-        float sword_width = fabsf(sword_tip_x - sword_base_x);
-        SDL_FRect sword = {sword_left, sword_y, sword_width, 4.0f};
-        SDL_RenderFillRect(renderer, &sword);
+    SDL_FlipMode flip       = animation_flip(fighter);
+    SDL_FRect    body_rect  = {px, py, PLAYER_WIDTH * tile_px, PLAYER_HEIGHT * tile_px};
+    SDL_Texture *body_tex   = animation_get_body_texture(player_idx, fighter);
+    SDL_Texture *ovl_tex    = animation_get_ovl_texture(player_idx, fighter);
+
+    if (body_tex != NULL) {
+        (void)SDL_SetTextureColorMod(body_tex, red, green, blue);
+        (void)SDL_RenderTextureRotated(renderer, body_tex, NULL, &body_rect, 0.0, NULL, flip);
+    } else {
+        /* Fallback: solid rectangle when sprites are not loaded */
+        SDL_SetRenderDrawColor(renderer, red, green, blue, 255);
+        SDL_RenderFillRect(renderer, &body_rect);
     }
 
-    SDL_SetRenderDrawColor(renderer, 245, 245, 245, 255);
-    SDL_FRect dot = {
-        px + (fighter->facing == FACING_LEFT ? 2.0f : PLAYER_WIDTH * tile_px - 7.0f),
-        py + 3.0f,
-        4.0f,
-        4.0f
-    };
-    SDL_RenderFillRect(renderer, &dot);
+    /* Sword overlay (armed run / jump / fall) */
+    if (ovl_tex != NULL) {
+        (void)SDL_SetTextureColorMod(ovl_tex, 230, 230, 180);
+        (void)SDL_RenderTextureRotated(renderer, ovl_tex, NULL, &body_rect, 0.0, NULL, flip);
+    }
+
+    /* Sword line — only when the body sprite does NOT already include the sword */
+    if (fighter->has_sword && fighter->sword_ready && !animation_draws_sword(player_idx, fighter) && ovl_tex == NULL) {
+        float sword_y      = py + sword_lane_offset(fighter->sword_height) * tile_px;
+        float sword_base_x = fighter->facing == FACING_RIGHT
+                             ? px + PLAYER_WIDTH * tile_px : px;
+        float sword_len    = BASE_SWORD_REACH * tile_px;
+        float sword_tip_x  = fighter->facing == FACING_RIGHT
+                             ? sword_base_x + sword_len : sword_base_x - sword_len;
+        float sword_left   = sword_base_x < sword_tip_x ? sword_base_x : sword_tip_x;
+        float sword_width  = fabsf(sword_tip_x - sword_base_x);
+        SDL_FRect sword_rect = {sword_left, sword_y, sword_width, 4.0f};
+        SDL_Texture *sword_texture = assets_get_texture(ASSET_TEX_SWORD);
+        if (sword_texture != NULL) {
+            (void)SDL_SetTextureColorMod(sword_texture, 230, 230, 180);
+            (void)SDL_RenderTexture(renderer, sword_texture, NULL, &sword_rect);
+        } else {
+            SDL_SetRenderDrawColor(renderer, 230, 230, 180, 255);
+            SDL_RenderFillRect(renderer, &sword_rect);
+        }
+    }
 }
 
 static void render_camera_view(const GameState *state, const SDL_Rect *viewport) {
@@ -100,11 +122,9 @@ static void render_camera_view(const GameState *state, const SDL_Rect *viewport)
     float max_camera_left = (float)arena->width - visible_tiles;
     const FighterState *p1 = &state->combat.fighters[PLAYER_ONE];
     const FighterState *p2 = &state->combat.fighters[PLAYER_TWO];
-    float focus_x = (p1->position.x + p2->position.x) * 0.5f;
+    float focus_x = p1->position.x;
     if (!p1->alive && p2->alive) {
         focus_x = p2->position.x;
-    } else if (p1->alive && !p2->alive) {
-        focus_x = p1->position.x;
     }
     float camera_left = clamp_camera_left(
         focus_x + (PLAYER_WIDTH * 0.5f) - (visible_tiles * 0.5f),
@@ -120,9 +140,16 @@ static void render_camera_view(const GameState *state, const SDL_Rect *viewport)
 
     segment_color(segment_index, &red, &green, &blue);
     SDL_SetRenderViewport(renderer, viewport);
-    SDL_SetRenderDrawColor(renderer, red, green, blue, 255);
-    SDL_FRect bg = {0.0f, 0.0f, (float)viewport->w, (float)viewport->h};
-    SDL_RenderFillRect(renderer, &bg);
+    SDL_Texture *background_texture = assets_get_texture(ASSET_TEX_BACKGROUND);
+    if (background_texture != NULL) {
+        SDL_FRect bg = {0.0f, 0.0f, (float)viewport->w, (float)viewport->h};
+        (void)SDL_SetTextureColorMod(background_texture, red, green, blue);
+        (void)SDL_RenderTexture(renderer, background_texture, NULL, &bg);
+    } else {
+        SDL_SetRenderDrawColor(renderer, red, green, blue, 255);
+        SDL_FRect bg = {0.0f, 0.0f, (float)viewport->w, (float)viewport->h};
+        SDL_RenderFillRect(renderer, &bg);
+    }
 
     if (end_tile > (int)arena->width) {
         end_tile = (int)arena->width;
@@ -167,9 +194,9 @@ static void render_camera_view(const GameState *state, const SDL_Rect *viewport)
     SDL_SetRenderDrawColor(renderer, 235, 235, 235, 255);
     SDL_RenderDebugText(renderer, 14.0f, 42.0f, label);
 
-    draw_fighter(renderer, &state->combat.fighters[PLAYER_ONE], 34, 104, 220,
+    draw_fighter(renderer, (int)PLAYER_ONE, &state->combat.fighters[PLAYER_ONE], 34, 104, 220,
                  camera_left, (float)viewport->w, tile_px, world_offset_y);
-    draw_fighter(renderer, &state->combat.fighters[PLAYER_TWO], 220, 52, 42,
+    draw_fighter(renderer, (int)PLAYER_TWO, &state->combat.fighters[PLAYER_TWO], 220, 52, 42,
                  camera_left, (float)viewport->w, tile_px, world_offset_y);
 
     for (int owner = 0; owner < 2; ++owner) {
@@ -183,7 +210,13 @@ static void render_camera_view(const GameState *state, const SDL_Rect *viewport)
         }
         SDL_SetRenderDrawColor(renderer, 245, 235, 160, 255);
         SDL_FRect dropped = {sx - 6.0f, sy - 2.0f, 12.0f, 3.0f};
-        SDL_RenderFillRect(renderer, &dropped);
+        SDL_Texture *sword_texture = assets_get_texture(ASSET_TEX_SWORD);
+        if (sword_texture != NULL) {
+            (void)SDL_SetTextureColorMod(sword_texture, 245, 235, 160);
+            (void)SDL_RenderTexture(renderer, sword_texture, NULL, &dropped);
+        } else {
+            SDL_RenderFillRect(renderer, &dropped);
+        }
     }
 
     for (int owner = 0; owner < 2; ++owner) {
@@ -198,7 +231,13 @@ static void render_camera_view(const GameState *state, const SDL_Rect *viewport)
 
         SDL_SetRenderDrawColor(renderer, 255, 245, 180, 255);
         SDL_FRect flight = {sx - 8.0f, sy - 1.5f, 16.0f, 3.0f};
-        SDL_RenderFillRect(renderer, &flight);
+        SDL_Texture *sword_texture = assets_get_texture(ASSET_TEX_SWORD);
+        if (sword_texture != NULL) {
+            (void)SDL_SetTextureColorMod(sword_texture, 255, 245, 180);
+            (void)SDL_RenderTexture(renderer, sword_texture, NULL, &flight);
+        } else {
+            SDL_RenderFillRect(renderer, &flight);
+        }
     }
 
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);

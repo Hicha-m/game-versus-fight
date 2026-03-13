@@ -5,12 +5,14 @@
 #include "combat/character.h"
 #include "combat/sword.h"
 #include "constants.h"
+#include "engine/audio.h"
 
 #include <math.h>
 #include <string.h>
 
 #define BLOCK_SPARK_FRAMES 6U
 #define BLOCK_RECOIL_SPEED 4.0f
+#define RUN_HOLSTER_SPEED 4.0f
 
 static float spawn_y_for_arena(const Arena *arena) {
 	return (float)(arena->height - 1) - PLAYER_HEIGHT;
@@ -82,6 +84,7 @@ static void respawn_player(GameState *state, PlayerId player) {
 	state->combat.fighters[player].facing = face;
 	state->combat.respawn_frames[player] = 0;
 	state->combat.death_popup_frames[player] = DEATH_POPUP_FRAMES;
+	audio_play_sfx(AUDIO_SFX_SPAWN);
 }
 
 static void start_transition(GameState *state, uint8_t target_segment) {
@@ -163,6 +166,7 @@ static bool pickup_nearby_sword(GameState *state, PlayerId player, const Fighter
 			state->combat.fighters[player].has_sword = true;
 			state->combat.fighters[player].sword_recover_frames = 0;
 			state->combat.sword_on_ground[owner] = false;
+			audio_play_sfx(AUDIO_SFX_PICKUP);
 			return true;
 		}
 	}
@@ -199,6 +203,7 @@ static void drop_fighter_sword(GameState *state, PlayerId player) {
 static void kill_fighter(GameState *state, PlayerId killer, PlayerId victim, bool by_throw, bool by_neck_snap) {
 	drop_fighter_sword(state, victim);
 	character_kill(&state->combat.fighters[victim]);
+	audio_play_sfx(AUDIO_SFX_DEATH);
 	register_kill(state, killer, victim, by_throw, by_neck_snap);
 }
 
@@ -207,6 +212,7 @@ static void kill_both_fighters(GameState *state) {
 	drop_fighter_sword(state, PLAYER_TWO);
 	character_kill(&state->combat.fighters[PLAYER_ONE]);
 	character_kill(&state->combat.fighters[PLAYER_TWO]);
+	audio_play_sfx(AUDIO_SFX_DEATH);
 	register_double_kill(state);
 }
 
@@ -269,6 +275,28 @@ static float sword_lane_y(const FighterState *fighter) {
 	}
 }
 
+static bool fighter_can_use_sword(const FighterState *fighter) {
+	return fighter->alive && !fighter->downed && fighter->has_sword && fighter->sword_ready;
+}
+
+static void update_sword_ready(FighterState *fighter, const PlayerCommand *command) {
+	if (fighter == NULL) {
+		return;
+	}
+
+	if (!fighter->alive || fighter->downed || !fighter->has_sword) {
+		fighter->sword_ready = false;
+		return;
+	}
+
+	bool is_running = false;
+	if (command != NULL && fighter->grounded && !command->crouch && command->move_axis != 0) {
+		is_running = fabsf(fighter->velocity.x) >= RUN_HOLSTER_SPEED;
+	}
+
+	fighter->sword_ready = !is_running;
+}
+
 static float sword_base_x(const FighterState *fighter) {
 	return fighter->facing == FACING_RIGHT ? fighter->position.x + PLAYER_WIDTH : fighter->position.x;
 }
@@ -287,7 +315,7 @@ static bool segments_overlap(float a0, float a1, float b0, float b1) {
 }
 
 static bool thrust_is_blocked(const FighterState *attacker, const FighterState *defender) {
-	if (!attacker->has_sword || !defender->has_sword) {
+	if (!fighter_can_use_sword(attacker) || !fighter_can_use_sword(defender)) {
 		return false;
 	}
 	if (attacker->sword_height != defender->sword_height) {
@@ -299,7 +327,7 @@ static bool thrust_is_blocked(const FighterState *attacker, const FighterState *
 }
 
 static bool sword_hits_body(const FighterState *attacker, const FighterState *defender, float reach) {
-	if (!attacker->has_sword) {
+	if (!fighter_can_use_sword(attacker)) {
 		return false;
 	}
 
@@ -332,9 +360,15 @@ static void set_block_feedback(GameState *state, const FighterState *p1, const F
 	state->combat.block_spark_frames = BLOCK_SPARK_FRAMES;
 	state->combat.block_spark_position.x = (p1->position.x + p2->position.x) * 0.5f + PLAYER_WIDTH * 0.5f;
 	state->combat.block_spark_position.y = (sword_lane_y(p1) + sword_lane_y(p2)) * 0.5f;
+	audio_play_sfx(AUDIO_SFX_BLOCK);
 
-	state->combat.fighters[PLAYER_ONE].velocity.x -= BLOCK_RECOIL_SPEED;
-	state->combat.fighters[PLAYER_TWO].velocity.x += BLOCK_RECOIL_SPEED;
+	if (p1->position.x <= p2->position.x) {
+		state->combat.fighters[PLAYER_ONE].velocity.x = -BLOCK_RECOIL_SPEED;
+		state->combat.fighters[PLAYER_TWO].velocity.x = BLOCK_RECOIL_SPEED;
+	} else {
+		state->combat.fighters[PLAYER_ONE].velocity.x = BLOCK_RECOIL_SPEED;
+		state->combat.fighters[PLAYER_TWO].velocity.x = -BLOCK_RECOIL_SPEED;
+	}
 }
 
 static bool try_apply_disarm(GameState *state,
@@ -401,7 +435,7 @@ static void apply_wall_interaction(FighterState *fighter,
 }
 
 static void launch_sword_if_requested(GameState *state, PlayerId owner, const FighterState *attacker, const PlayerCommand *command) {
-	if (!command->parry || !attacker->has_sword || attacker->sword_recover_frames > 0) {
+	if (!command->parry || !fighter_can_use_sword(attacker) || attacker->sword_recover_frames > 0) {
 		return;
 	}
 	if (state->combat.sword_in_flight[owner]) {
@@ -415,11 +449,12 @@ static void launch_sword_if_requested(GameState *state, PlayerId owner, const Fi
 	state->combat.sword_flight_velocity[owner] = (attacker->facing == FACING_RIGHT) ? THROW_SPEED : -THROW_SPEED;
 	state->combat.fighters[owner].has_sword = false;
 	state->combat.fighters[owner].sword_recover_frames = SWORD_RECOVER_FRAMES;
+	audio_play_sfx(AUDIO_SFX_THROW);
 }
 
 static bool projectile_hits_block(const CombatState *combat, PlayerId owner, PlayerId defender) {
 	const FighterState *def = &combat->fighters[defender];
-	if (!def->has_sword || !def->alive) {
+	if (!fighter_can_use_sword(def)) {
 		return false;
 	}
 	if (combat->sword_flight_height[owner] != def->sword_height) {
@@ -477,6 +512,7 @@ static void update_thrown_swords(GameState *state) {
 		}
 
 		if (projectile_hits_body(&state->combat, own, opp)) {
+			audio_play_sfx(AUDIO_SFX_HIT);
 			kill_fighter(state, own, opp, true, false);
 			drop_sword(state, own, state->combat.sword_flight_position[owner].x, state->combat.sword_flight_position[owner].y);
 		}
@@ -518,7 +554,7 @@ static void resolve_sword_duel(GameState *state,
 	bool p1_hits = p1_thrust && !p1_blocked && sword_hits_body(p1, p2, BASE_SWORD_REACH);
 	bool p2_hits = p2_thrust && !p2_blocked && sword_hits_body(p2, p1, BASE_SWORD_REACH);
 
-	if (p1_blocked && p2_blocked) {
+	if (p1_blocked || p2_blocked) {
 		set_block_feedback(state, p1, p2);
 	}
 
@@ -528,20 +564,24 @@ static void resolve_sword_duel(GameState *state,
 	}
 
 	if (p1_hits) {
+		audio_play_sfx(AUDIO_SFX_HIT);
 		kill_fighter(state, PLAYER_ONE, PLAYER_TWO, false, false);
 		return;
 	}
 
 	if (p2_hits) {
+		audio_play_sfx(AUDIO_SFX_HIT);
 		kill_fighter(state, PLAYER_TWO, PLAYER_ONE, false, false);
 		return;
 	}
 
 	if (!p1->has_sword && p1_command->attack && body_contact(p1, p2, 1.1f)) {
+		audio_play_sfx(AUDIO_SFX_HIT);
 		kill_fighter(state, PLAYER_ONE, PLAYER_TWO, false, false);
 		return;
 	}
 	if (!p2->has_sword && p2_command->attack && body_contact(p2, p1, 1.1f)) {
+		audio_play_sfx(AUDIO_SFX_HIT);
 		kill_fighter(state, PLAYER_TWO, PLAYER_ONE, false, false);
 		return;
 	}
@@ -662,6 +702,7 @@ GameError match_start(GameState *state) {
 	state->phase_elapsed = 0;
 	state->round_winner = PLAYER_ONE;
 	state->combat.has_priority = false;
+	audio_play_sfx(AUDIO_SFX_SPAWN);
 	return GAME_OK;
 }
 
@@ -707,6 +748,11 @@ GameError match_update(GameState *state, const FrameInput *input) {
 		build_ai_command(state, &player_two_command);
 	}
 
+	bool was_grounded[2] = {
+		state->combat.fighters[PLAYER_ONE].grounded,
+		state->combat.fighters[PLAYER_TWO].grounded
+	};
+
 	float left = segment_start_x(state->active_segment);
 	float right = segment_end_x(state->active_segment);
 	apply_wall_interaction(&state->combat.fighters[PLAYER_ONE], &input->commands[PLAYER_ONE], left, right);
@@ -714,10 +760,36 @@ GameError match_update(GameState *state, const FrameInput *input) {
 
 	character_update(&state->combat.fighters[PLAYER_ONE], &input->commands[PLAYER_ONE], FIXED_TIMESTEP_MS);
 	character_update(&state->combat.fighters[PLAYER_TWO], &player_two_command, FIXED_TIMESTEP_MS);
+	update_sword_ready(&state->combat.fighters[PLAYER_ONE], &input->commands[PLAYER_ONE]);
+	update_sword_ready(&state->combat.fighters[PLAYER_TWO], &player_two_command);
 
 	GameError err = combat_step(&state->combat, &state->arena, FIXED_TIMESTEP_MS);
 	if (err != GAME_OK) {
 		return err;
+	}
+
+	for (int player = 0; player < 2; ++player) {
+		const PlayerCommand *command = (player == PLAYER_ONE) ? &input->commands[PLAYER_ONE] : &player_two_command;
+		const FighterState *fighter = &state->combat.fighters[player];
+
+		if (!fighter->alive) {
+			continue;
+		}
+
+		if (was_grounded[player] && !fighter->grounded && command->jump) {
+			audio_play_sfx(AUDIO_SFX_JUMP);
+		}
+
+		if (!was_grounded[player] && fighter->grounded) {
+			audio_play_sfx(AUDIO_SFX_LAND);
+		}
+
+		if (fighter->grounded && fabsf(fighter->velocity.x) > 2.5f) {
+			uint64_t cadence = (uint64_t)(player == PLAYER_ONE ? 0U : 9U);
+			if ((state->frame_index % 18U) == cadence) {
+				audio_play_sfx(AUDIO_SFX_STEP);
+			}
+		}
 	}
 
 	resolve_fighter_overlap(state);

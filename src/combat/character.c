@@ -20,6 +20,7 @@ void character_init(FighterState *fighter, float spawn_x, float spawn_y) {
 	fighter->facing = FACING_RIGHT;
 	fighter->sword_height = SWORD_HEIGHT_MID;
 	fighter->has_sword = true;
+	fighter->sword_ready = true;
 	fighter->sword_recover_frames = 0;
 	fighter->alive = true;
 	fighter->downed = false;
@@ -89,7 +90,8 @@ void character_update(FighterState *fighter, const PlayerCommand *input, uint32_
 		}
 	}
 
-	if (fighter->grounded && input->crouch) {
+	/* Keep crouch movement, but do not force platform drop-through every frame. */
+	if (fighter->grounded && input->crouch && input->parry) {
 		fighter->drop_through_frames = 8;
 	}
 
@@ -201,6 +203,7 @@ void character_kill(FighterState *fighter) {
 	fighter->alive = false;
 	fighter->velocity = (Vec2f){.x = 0.0f, .y = 0.0f};
 	fighter->has_sword = false;
+	fighter->sword_ready = false;
 	fighter->sword_recover_frames = 0;
 	fighter->downed = false;
 	fighter->downed_frames = 0;
