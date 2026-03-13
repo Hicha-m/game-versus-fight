@@ -5,12 +5,11 @@
 
 /**
  * Attack system with sword heights
- * 
- * GDD mechanics:
- * - Attack: Frappe avec l'épée
- * - Parry: Bloquer l'attaque
- * - Sword height: High/Mid/Low determines which attacks you block/lose to
- * - Rock-paper-scissors: High blocks High, loses to Low, etc.
+ *
+ * Nidhogg-like mechanic:
+ * - Sword-vs-sword collisions auto-block only on exact matching height.
+ * - No manual parry is involved in thrust-vs-thrust resolution.
+ * - Any mismatch (HIGH/MID/LOW different) means the attack lane is not blocked.
  */
 
 /**

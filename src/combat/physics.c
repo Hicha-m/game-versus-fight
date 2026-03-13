@@ -9,8 +9,8 @@ bool physics_check_ground(const Arena *arena, const FighterState *fighter) {
 	if (arena == NULL || fighter == NULL) return false;
 	
 	// Check if there's solid ground below fighter
-	int grid_x = (int)fighter->position.x;
-	int grid_y = (int)(fighter->position.y + PLAYER_HEIGHT) + 1;  // One unit below feet
+	int grid_x = (int)(fighter->position.x + (PLAYER_WIDTH * 0.5f));
+	int grid_y = (int)(fighter->position.y + PLAYER_HEIGHT + 0.05f);
 	
 	// Out of bounds = solid (arena boundary acts as ground)
 	if (grid_y >= (int)arena->height) return true;
@@ -21,7 +21,13 @@ bool physics_check_ground(const Arena *arena, const FighterState *fighter) {
 	int tile_index = grid_y * arena->width + grid_x;
 	if (tile_index >= 0 && tile_index < (int)(arena->width * arena->height)) {
 		TileType tile = arena->tiles[tile_index];
-		return tile == TILE_SOLID || tile == TILE_PLATFORM;
+		if (tile == TILE_SOLID) {
+			return true;
+		}
+		if (tile == TILE_PLATFORM) {
+			return fighter->drop_through_frames == 0;
+		}
+		return false;
 	}
 	
 	return false;
@@ -37,11 +43,34 @@ void physics_resolve_collision(const Arena *arena, FighterState *fighter) {
 	// Check ground contact
 	fighter->grounded = physics_check_ground(arena, fighter);
 	
-	// Prevent falling through bottom
-	if (fighter->position.y > (float)arena->height) {
-		fighter->position.y = (float)arena->height;
+	/* Clamp to floor level so the fighter never sinks below the solid row */
+	float floor_y = (float)(arena->height - 1) - PLAYER_HEIGHT;
+	if (fighter->position.y > floor_y) {
+		fighter->position.y = floor_y;
 		fighter->velocity.y = 0;
 		fighter->grounded = true;
+	}
+
+	/* One-way platform support: land from above and stay on top */
+	int foot_y = (int)(fighter->position.y + PLAYER_HEIGHT + 0.05f);
+	int left_foot_x = (int)(fighter->position.x + 0.1f);
+	int right_foot_x = (int)(fighter->position.x + PLAYER_WIDTH - 0.1f);
+	if (fighter->drop_through_frames == 0 && fighter->velocity.y >= 0.0f && foot_y >= 0 && foot_y < (int)arena->height) {
+		int foot_positions[2] = {left_foot_x, right_foot_x};
+		for (int foot = 0; foot < 2; ++foot) {
+			int foot_x = foot_positions[foot];
+			if (foot_x < 0 || foot_x >= (int)arena->width) {
+				continue;
+			}
+
+			int idx = foot_y * arena->width + foot_x;
+			if (idx >= 0 && idx < (int)(arena->width * arena->height) && arena->tiles[idx] == TILE_PLATFORM) {
+				fighter->position.y = (float)foot_y - PLAYER_HEIGHT;
+				fighter->velocity.y = 0.0f;
+				fighter->grounded = true;
+				break;
+			}
+		}
 	}
 	
 	// Crude collision with solid tiles (prevent clipping)

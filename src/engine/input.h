@@ -3,6 +3,6 @@
 
 #include "types.h"
 
-void engine_collect_input(FrameInput *input);
+void engine_collect_input(FrameInput *input, const GameState *state);
 
 #endif

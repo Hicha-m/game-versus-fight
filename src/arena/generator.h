@@ -1,7 +1,7 @@
 #ifndef ARENA_GENERATOR_H
 #define ARENA_GENERATOR_H
 
-#include "types.h"
+#include "arena.h"
 
 /**
  * Procedural arena generation
@@ -15,6 +15,6 @@
  * 4. If invalid, regenerate
  */
 
-GameError generator_create_tiles(Arena *arena);
+GameError generator_create_tiles(Arena *arena, const ArenaGenerationOptions *options);
 
 #endif

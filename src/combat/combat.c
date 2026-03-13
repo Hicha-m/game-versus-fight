@@ -1,10 +1,26 @@
 #include "combat.h"
+#include "arena.h"
 #include "combat/character.h"
 #include "combat/physics.h"
 #include "combat/attacks.h"
-#include "combat/momentum.h"
 #include "combat/sword.h"
 #include "constants.h"
+
+static uint16_t clamp_round_time_seconds(const GameConfig *config) {
+	uint16_t seconds = DEFAULT_ROUND_TIME_SECONDS;
+
+	if (config != NULL && config->max_round_time_seconds > 0U) {
+		seconds = config->max_round_time_seconds;
+	}
+	if (seconds < MIN_ROUND_TIME_SECONDS) {
+		seconds = MIN_ROUND_TIME_SECONDS;
+	}
+	if (seconds > MAX_ROUND_TIME_SECONDS) {
+		seconds = MAX_ROUND_TIME_SECONDS;
+	}
+
+	return seconds;
+}
 
 /**
  * Initialize combat state for a new round
@@ -15,22 +31,32 @@ GameError combat_init(CombatState *combat, const Arena *arena, const GameConfig 
 	if (combat == NULL || arena == NULL) {
 		return GAME_ERROR_INVALID_ARGUMENT;
 	}
-	
-	// Find spawn points in arena
-	Vec2f spawn_p1 = {.x = 2.0f, .y = 2.0f};
-	Vec2f spawn_p2 = {.x = (float)(arena->width - 3), .y = 2.0f};
-	
-	// Initialize fighters
-	character_init(&combat->fighters[PLAYER_ONE], spawn_p1.x, spawn_p1.y);
-	character_init(&combat->fighters[PLAYER_TWO], spawn_p2.x, spawn_p2.y);
-	
-	combat->fighters[PLAYER_ONE].facing = FACING_RIGHT;
-	combat->fighters[PLAYER_TWO].facing = FACING_LEFT;
-	
+
+	*combat = (CombatState){0};
+	combat->arena_width = arena->width;
+	combat->segment_goal_mode = (arena->width >= ARENA_DEFAULT_WIDTH);
+	combat->round_time_limit_seconds = clamp_round_time_seconds(config);
+
+	Vec2i spawn_p1 = {0};
+	Vec2i spawn_p2 = {0};
+	float floor_y = (float)(arena->height - 1) - PLAYER_HEIGHT;
+	arena_find_spawn(arena, PLAYER_ONE, &spawn_p1);
+	arena_find_spawn(arena, PLAYER_TWO, &spawn_p2);
+
+	character_init(&combat->fighters[PLAYER_ONE], (float)spawn_p1.x, floor_y);
+	character_init(&combat->fighters[PLAYER_TWO], (float)spawn_p2.x, floor_y);
+
+	combat->fighters[PLAYER_ONE].facing = (spawn_p1.x <= spawn_p2.x) ? FACING_RIGHT : FACING_LEFT;
+	combat->fighters[PLAYER_TWO].facing = (spawn_p2.x >= spawn_p1.x) ? FACING_LEFT : FACING_RIGHT;
+
 	combat->round_time_frames = 0;
 	combat->score[PLAYER_ONE] = 0;
 	combat->score[PLAYER_TWO] = 0;
 	combat->duel_active = true;
+	combat->respawn_frames[PLAYER_ONE] = 0;
+	combat->respawn_frames[PLAYER_TWO] = 0;
+	combat->death_popup_frames[PLAYER_ONE] = 0;
+	combat->death_popup_frames[PLAYER_TWO] = 0;
 	
 	return GAME_OK;
 }
@@ -70,6 +96,7 @@ GameError combat_step(CombatState *combat, const Arena *arena, uint32_t fixed_dt
 	if (combat == NULL || arena == NULL) {
 		return GAME_ERROR_INVALID_ARGUMENT;
 	}
+	(void)fixed_dt_ms;
 	
 	if (!combat->duel_active) {
 		return GAME_OK;
@@ -85,13 +112,7 @@ GameError combat_step(CombatState *combat, const Arena *arena, uint32_t fixed_dt
 		physics_resolve_collision(arena, fighter);
 		physics_clamp_to_arena(arena, fighter);
 		
-		// 2. Apply momentum speed bonus to velocity if active
-		if (fighter->momentum_frames > 0) {
-			float speed_multiplier = momentum_get_speed_bonus(fighter->momentum_frames);
-			fighter->velocity.x *= speed_multiplier;
-		}
-		
-		// 3. Increment momentum counter (rewards living longer)
+		// 2. Increment momentum counter (rewards living longer)
 		fighter->momentum_frames++;
 		
 		// 4. Check reach bonus from successful parries
@@ -127,22 +148,28 @@ bool combat_is_round_over(const CombatState *combat, PlayerId *out_winner) {
 	if (!combat->duel_active) return false;
 	
 	// Check timeout
-	uint32_t max_frames = (MAX_ROUND_TIME_SECONDS * 1000) / FIXED_TIMESTEP_MS;
+	uint16_t round_time_limit = combat->round_time_limit_seconds;
+	if (round_time_limit < MIN_ROUND_TIME_SECONDS || round_time_limit > MAX_ROUND_TIME_SECONDS) {
+		round_time_limit = DEFAULT_ROUND_TIME_SECONDS;
+	}
+	uint32_t max_frames = ((uint32_t)round_time_limit * 1000U) / FIXED_TIMESTEP_MS;
 	if (combat->round_time_frames >= max_frames) {
 		if (out_winner != NULL) {
-			*out_winner = PLAYER_ONE;  // Default tie winner
+			float p1_distance = combat->fighters[PLAYER_ONE].position.x;
+			float p2_distance = (float)combat->arena_width - combat->fighters[PLAYER_TWO].position.x;
+			*out_winner = (p1_distance <= p2_distance) ? PLAYER_ONE : PLAYER_TWO;
 		}
 		return true;
 	}
 	
-	// Check if either fighter reached goal (end of arena)
-	// Low X = Player 1 goal, High X = Player 2 goal
-	if (combat->fighters[PLAYER_ONE].position.x <= 0.0f) {
+	if (combat->segment_goal_mode && combat->fighters[PLAYER_ONE].alive &&
+	    combat->fighters[PLAYER_ONE].position.x < (float)MAP_SEGMENT_TILES) {
 		if (out_winner != NULL) *out_winner = PLAYER_ONE;
 		return true;
 	}
-	
-	if (combat->fighters[PLAYER_TWO].position.x >= (float)combat->round_time_frames) {  // TODO: get arena width
+	if (combat->segment_goal_mode && combat->fighters[PLAYER_TWO].alive &&
+	    combat->arena_width > 0 &&
+	    combat->fighters[PLAYER_TWO].position.x + PLAYER_WIDTH > (float)(combat->arena_width - MAP_SEGMENT_TILES)) {
 		if (out_winner != NULL) *out_winner = PLAYER_TWO;
 		return true;
 	}

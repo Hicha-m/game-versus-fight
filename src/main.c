@@ -21,7 +21,6 @@
  *   render_frame(accumulator / FIXED_DT)  // interpolation factor
  */
 int main(void) {
-	GameConfig config = {0};
 	GameState state = {0};
 	
 	// Initialize engine (SDL3, window, renderer)
@@ -32,7 +31,7 @@ int main(void) {
 	}
 
 	// Initialize game state
-	error = game_create(&config, &state); 
+	error = game_create(NULL, &state); 
 	if (error != GAME_OK) {
 		SDL_Log("FATAL: game_create failed: %s", game_error_string(error));
 		engine_shutdown();
@@ -66,7 +65,7 @@ int main(void) {
 		while (accumulator >= FIXED_DT_MS) {
 			// Collect input for this fixed frame
 			FrameInput input = {0};
-			engine_collect_input(&input);
+			engine_collect_input(&input, &state);
 
 			// Update game logic at fixed timestep
 			error = game_update(&state, &input);
@@ -75,8 +74,6 @@ int main(void) {
 				state.running = false;
 				break;
 			}
-
-			state.frame_index++;
 			accumulator -= FIXED_DT_MS;
 		}
 		

@@ -1,1 +1,22 @@
-{}
+{
+  "arena_width": 320,
+  "arena_height": 21,
+  "arena_archetype": 2,
+  "max_round_time_seconds": 180,
+  "ai_difficulty": 1,
+  "game_mode": 0,
+  "p1_left": 29,
+  "p1_right": 79,
+  "p1_jump": 229,
+  "p1_attack": 40,
+  "p1_parry": 228,
+  "p1_stance_up": 82,
+  "p1_stance_down": 81,
+  "p2_left": 4,
+  "p2_right": 7,
+  "p2_jump": 26,
+  "p2_attack": 9,
+  "p2_parry": 10,
+  "p2_stance_up": 20,
+  "p2_stance_down": 22
+}
