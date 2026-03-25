@@ -24,18 +24,18 @@ int main(void)
     config.window_height = WINDOW_HEIGHT;
 
     if (!engine_init(&engine, &config)) {
-        log_error("engine_init a échoué");
+        log_error("engine_init failed");
         return 1;
     }
 
     if (!render_init(&render, &engine)) {
-        log_error("render_init a échoué");
+        log_error("render_init failed");
         engine_shutdown(&engine);
         return 1;
     }
 
     if (!game_init(&game)) {
-        log_error("game_init a échoué");
+        log_error("game_init failed");
         render_shutdown(&render);
         engine_shutdown(&engine);
         return 1;
@@ -77,7 +77,7 @@ int main(void)
     if (memory_has_leaks()) {
         MemoryStats stats = memory_get_stats();
         log_warn(
-            "Fuites mémoire détectées : alloc=%llu free=%llu current=%llu peak=%llu",
+            "Memory leaks detected: alloc=%llu free=%llu current=%llu peak=%llu",
             (unsigned long long)stats.allocation_count,
             (unsigned long long)stats.free_count,
             (unsigned long long)stats.bytes_current,
@@ -86,7 +86,7 @@ int main(void)
     } else {
         MemoryStats stats = memory_get_stats();
         log_info(
-            "Pas de fuite mémoire. peak=%llu bytes",
+            "No memory leaks. peak=%llu bytes",
             (unsigned long long)stats.bytes_peak
         );
     }

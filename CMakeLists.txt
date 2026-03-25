@@ -20,6 +20,7 @@ add_library(game_core STATIC
     src/render/render.c
 
     src/utils/log.c
+    src/utils/utils.c
     src/utils/memory.c
 )
 

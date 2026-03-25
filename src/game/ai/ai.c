@@ -19,7 +19,11 @@ static i32 difficulty_to_depth(AIDifficulty difficulty)
 static f64 now_ms(void)
 {
     struct timespec ts;
-    timespec_get(&ts, TIME_UTC);
+
+    if (timespec_get(&ts, TIME_UTC) != TIME_UTC) {
+        return 0.0;
+    }
+
     return (f64)ts.tv_sec * 1000.0 + (f64)ts.tv_nsec / 1000000.0;
 }
 
@@ -433,7 +437,11 @@ PlayerCommand ai_think(
     end_ms = now_ms();
 
     if (ai) {
-        ai->metrics.think_time_ms = end_ms - start_ms;
+        if (start_ms > 0.0 && end_ms >= start_ms) {
+            ai->metrics.think_time_ms = end_ms - start_ms;
+        } else {
+            ai->metrics.think_time_ms = 0.0;
+        }
         ai->metrics.estimated_memory_bytes = ai->metrics.nodes_expanded * (u64)sizeof(AIDecisionState);
     }
 

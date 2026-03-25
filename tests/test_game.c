@@ -59,10 +59,41 @@ static int test_game_update_handles_round_end_stats(void) {
 
 static int test_game_update_ignores_null_input(void) {
 	Game game = {0};
+	Game snapshot = {0};
 	TEST_ASSERT_TRUE(game_init(&game));
 
+	/* Seed non-default values to ensure NULL input does not mutate gameplay state. */
+	game.phase = GAME_PHASE_PAUSED;
+	game.arena.current_room = 2;
+	game.combat.round_over = true;
+	game.combat.winner_index = 1;
+	game.combat.fighters[0].state.pos.x = 123.0f;
+	game.combat.fighters[0].state.pos.y = 45.0f;
+	game.combat.fighters[0].state.alive = false;
+	game.combat.fighters[1].state.attack_cooldown = 0.75f;
+	game.match_stats.rounds_played = 7;
+	game.match_stats.wins[0] = 3;
+	game.match_stats.kills[1] = 2;
+
+	snapshot = game;
+
 	game_update(&game, NULL, FIXED_DT);
-	TEST_ASSERT_EQ_INT(GAME_PHASE_MATCH, game.phase);
+
+	TEST_ASSERT_EQ_INT(snapshot.phase, game.phase);
+	TEST_ASSERT_EQ_INT(snapshot.arena.current_room, game.arena.current_room);
+	TEST_ASSERT_EQ_INT(snapshot.combat.round_over, game.combat.round_over);
+	TEST_ASSERT_EQ_INT(snapshot.combat.winner_index, game.combat.winner_index);
+	TEST_ASSERT_EQ_INT(snapshot.combat.fighters[0].state.alive,
+	                   game.combat.fighters[0].state.alive);
+	TEST_ASSERT_TRUE(memcmp(&snapshot.combat.fighters[0].state.pos,
+	                        &game.combat.fighters[0].state.pos,
+	                        sizeof(snapshot.combat.fighters[0].state.pos)) == 0);
+	TEST_ASSERT_TRUE(snapshot.combat.fighters[1].state.attack_cooldown ==
+	                 game.combat.fighters[1].state.attack_cooldown);
+	TEST_ASSERT_EQ_INT(snapshot.match_stats.rounds_played,
+	                   game.match_stats.rounds_played);
+	TEST_ASSERT_EQ_INT(snapshot.match_stats.wins[0], game.match_stats.wins[0]);
+	TEST_ASSERT_EQ_INT(snapshot.match_stats.kills[1], game.match_stats.kills[1]);
 	game_shutdown(&game);
 	return 0;
 }

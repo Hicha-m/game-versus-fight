@@ -1,0 +1,25 @@
+#include "utils/math_utils.h"
+
+f32 math_clampf(f32 v, f32 lo, f32 hi)
+{
+    if (v < lo) {
+        return lo;
+    }
+
+    if (v > hi) {
+        return hi;
+    }
+
+    return v;
+}
+
+void math_clamp_min_zero_f32(f32* value)
+{
+    if (!value) {
+        return;
+    }
+
+    if (*value < 0.0f) {
+        *value = 0.0f;
+    }
+}

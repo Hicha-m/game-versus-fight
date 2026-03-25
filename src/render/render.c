@@ -3,13 +3,7 @@
 #include "core/constants.h"
 #include "render/render.h"
 #include "render_internal.h"
-
-static f32 clampf(f32 v, f32 lo, f32 hi)
-{
-    if (v < lo) return lo;
-    if (v > hi) return hi;
-    return v;
-}
+#include "utils/math_utils.h"
 
 bool render_init(RenderContext* render, Engine* engine)
 {
@@ -53,11 +47,9 @@ void render_update_camera(RenderContext* render, const Game* game)
     center_x += PLAYER_WIDTH * 0.5f;
 
     max_camera_x = room_width_px - (f32)WINDOW_WIDTH;
-    if (max_camera_x < 0.0f) {
-        max_camera_x = 0.0f;
-    }
+    math_clamp_min_zero_f32(&max_camera_x);
 
-    render->camera.position.x = clampf(center_x - (f32)WINDOW_WIDTH * 0.5f, 0.0f, max_camera_x);
+    render->camera.position.x = math_clampf(center_x - (f32)WINDOW_WIDTH * 0.5f, 0.0f, max_camera_x);
     render->camera.position.y = 0.0f;
 }
 
