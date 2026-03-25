@@ -1,4 +1,0 @@
-#ifndef COMBAT_MOMENTUM_H
-#define COMBAT_MOMENTUM_H
-
-#endif

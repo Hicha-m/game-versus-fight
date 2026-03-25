@@ -1,46 +1,96 @@
-#include "constants.h"
-#include "game.h"
-#include "engine.h"
-#include "engine/render.h"
-#include "engine/input.h"
+#include <stdio.h>
 
+#include "core/constants.h"
+#include "engine/engine.h"
+#include "game/game.h"
+#include "render/render.h"
+#include "utils/log.h"
+#include "utils/memory.h"
 
-int main(void) {
-	GameConfig config = {0};
-	GameState state = {0};
-	GameError error = engine_init();
-	if (error != GAME_OK) {
-		SDL_Log("engine_init failed: %s", game_error_string(error));
-		(void)game_destroy(&state);
-		return 1;
-	}
+int main(void)
+{
+    Engine engine;
+    Game game;
+    RenderContext render;
 
-	error = game_create(&config, &state); 
-	if (error != GAME_OK) {
-		SDL_Log("game_create failed: %s", game_error_string(error));
-		return 1;
-	}
-	
-	while (state.running) {
-		FrameInput input = {0};
-		engine_collect_input(&input);
+    EngineConfig config;
+    f64 accumulator = 0.0;
+    u64 last_counter;
 
-		error = game_update(&state, &input);
-		if (error != GAME_OK) {
-			SDL_Log("game_update failed: %s", game_error_string(error));
-			break;
-		}
+    memory_init();
 
-		error = render_frame(&state);
-		if (error != GAME_OK) {
-			SDL_Log("render_frame failed: %s", game_error_string(error));
-			break;
-		}
+    config.title = WINDOW_TITLE;
+    config.window_width = WINDOW_WIDTH;
+    config.window_height = WINDOW_HEIGHT;
 
-		SDL_Delay(1000U / TARGET_FPS);
-	}
+    if (!engine_init(&engine, &config)) {
+        log_error("engine_init a échoué");
+        return 1;
+    }
 
-	(void)engine_shutdown();
-	(void)game_destroy(&state);
-	return error == GAME_OK ? 0 : 1;
+    if (!render_init(&render, &engine)) {
+        log_error("render_init a échoué");
+        engine_shutdown(&engine);
+        return 1;
+    }
+
+    if (!game_init(&game)) {
+        log_error("game_init a échoué");
+        render_shutdown(&render);
+        engine_shutdown(&engine);
+        return 1;
+    }
+
+    last_counter = engine_now_counter();
+
+    while (engine.running) {
+        u64 now = engine_now_counter();
+        f64 frame_time = engine_counter_seconds(now - last_counter);
+        FrameInput input;
+
+        last_counter = now;
+
+        if (frame_time > 0.25) {
+            frame_time = 0.25;
+        }
+
+        accumulator += frame_time;
+
+        engine_poll_input(&engine, &input);
+
+        if (input.quit_requested) {
+            engine.running = false;
+        }
+
+        while (accumulator >= FIXED_DT) {
+            game_update(&game, &input, FIXED_DT);
+            accumulator -= FIXED_DT;
+        }
+
+        render_frame(&render, &engine, &game, (f32)(accumulator / FIXED_DT));
+    }
+
+    game_shutdown(&game);
+    render_shutdown(&render);
+    engine_shutdown(&engine);
+
+    if (memory_has_leaks()) {
+        MemoryStats stats = memory_get_stats();
+        log_warn(
+            "Fuites mémoire détectées : alloc=%llu free=%llu current=%llu peak=%llu",
+            (unsigned long long)stats.allocation_count,
+            (unsigned long long)stats.free_count,
+            (unsigned long long)stats.bytes_current,
+            (unsigned long long)stats.bytes_peak
+        );
+    } else {
+        MemoryStats stats = memory_get_stats();
+        log_info(
+            "Pas de fuite mémoire. peak=%llu bytes",
+            (unsigned long long)stats.bytes_peak
+        );
+    }
+
+    memory_shutdown();
+    return 0;
 }

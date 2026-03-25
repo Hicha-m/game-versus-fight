@@ -1,4 +1,0 @@
-#ifndef COMBAT_CHARACTER_H
-#define COMBAT_CHARACTER_H
-
-#endif
