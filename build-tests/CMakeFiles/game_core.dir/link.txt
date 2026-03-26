@@ -1,0 +1,2 @@
+/usr/bin/ar qc libgame_core.a CMakeFiles/game_core.dir/src/engine/engine.c.o CMakeFiles/game_core.dir/src/engine/input.c.o CMakeFiles/game_core.dir/src/game/arena/arena.c.o CMakeFiles/game_core.dir/src/game/combat/combat.c.o CMakeFiles/game_core.dir/src/game/ai/ai.c.o CMakeFiles/game_core.dir/src/game/game.c.o CMakeFiles/game_core.dir/src/render/render.c.o CMakeFiles/game_core.dir/src/utils/log.c.o CMakeFiles/game_core.dir/src/utils/memory.c.o
+/usr/bin/ranlib libgame_core.a

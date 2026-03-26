@@ -1,0 +1,7 @@
+/home/user/Documents/Cours/jeux IA/build-tests/CMakeFiles/game_core.dir
+/home/user/Documents/Cours/jeux IA/build-tests/CMakeFiles/game_app.dir
+/home/user/Documents/Cours/jeux IA/build-tests/CMakeFiles/game_tests.dir
+/home/user/Documents/Cours/jeux IA/build-tests/CMakeFiles/run_game.dir
+/home/user/Documents/Cours/jeux IA/build-tests/CMakeFiles/test.dir
+/home/user/Documents/Cours/jeux IA/build-tests/CMakeFiles/edit_cache.dir
+/home/user/Documents/Cours/jeux IA/build-tests/CMakeFiles/rebuild_cache.dir

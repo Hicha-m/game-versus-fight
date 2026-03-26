@@ -1,0 +1,1 @@
+/usr/bin/cc -g -Wl,--dependency-file=CMakeFiles/game_app.dir/link.d CMakeFiles/game_app.dir/src/main.c.o -o game_app  libgame_core.a /usr/lib64/libSDL3.so.0.4.0 -lm
