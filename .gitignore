@@ -4,3 +4,5 @@ _*
 build
 build-make
 *.log
+.vscode
+saved_maps
