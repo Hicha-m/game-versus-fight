@@ -3,4 +3,6 @@ _*
 .env
 build
 build-make
+build-tests
 *.log
+.vscode
