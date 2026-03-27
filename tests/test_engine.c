@@ -3,7 +3,7 @@
 
 #include <SDL3/SDL.h>
 
-static int try_init_engine(Engine *engine) {
+static Engine* try_init_engine(void) {
 	EngineConfig config = {
 		.title = "test",
 		.window_width = 320,
@@ -13,47 +13,42 @@ static int try_init_engine(Engine *engine) {
 	/* Keep tests runnable in headless environments (CI, containers). */
 	SDL_SetLogPriorities(SDL_LOG_PRIORITY_CRITICAL);
 	SDL_SetHint(SDL_HINT_VIDEO_DRIVER, "dummy");
-	return (int)engine_init(engine, &config);
+	return engine_create(&config);
 }
 
 static int test_engine_init_creates_renderer(void) {
-	Engine engine = {0};
-	if (!try_init_engine(&engine)) {
+	Engine* engine = try_init_engine();
+	if (!engine) {
 		/* SDL renderer may be unavailable on this machine. */
 		return 0;
 	}
 
-	TEST_ASSERT_TRUE(engine.running);
-	TEST_ASSERT_TRUE(engine.window != NULL);
-	TEST_ASSERT_TRUE(engine.renderer != NULL);
-	engine_shutdown(&engine);
+	TEST_ASSERT_TRUE(engine_is_running(engine));
+	TEST_ASSERT_TRUE(engine_get_window_handle(engine) != NULL);
+	TEST_ASSERT_TRUE(engine_get_renderer_handle(engine) != NULL);
+	engine_destroy(engine);
 	return 0;
 }
 
 static int test_engine_shutdown_stops_running(void) {
-	Engine engine = {0};
-	if (!try_init_engine(&engine)) {
+	Engine* engine = try_init_engine();
+	if (!engine) {
 		return 0;
 	}
 
-	engine_shutdown(&engine);
-	TEST_ASSERT_TRUE(!engine.running);
-	TEST_ASSERT_TRUE(engine.window == NULL);
-	TEST_ASSERT_TRUE(engine.renderer == NULL);
+	engine_request_stop(engine);
+	TEST_ASSERT_TRUE(!engine_is_running(engine));
+	engine_destroy(engine);
 	return 0;
 }
 
 static int test_engine_shutdown_is_idempotent(void) {
-	Engine engine = {0};
-	engine_shutdown(&engine);
-	TEST_ASSERT_TRUE(engine.window == NULL);
-	TEST_ASSERT_TRUE(engine.renderer == NULL);
-	TEST_ASSERT_TRUE(!engine.running);
+	engine_destroy(NULL);
 	return 0;
 }
 
 static int test_engine_init_rejects_invalid_arguments(void) {
-	TEST_ASSERT_TRUE(!engine_init(NULL, NULL));
+	TEST_ASSERT_TRUE(engine_create(NULL) == NULL);
 	return 0;
 }
 

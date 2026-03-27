@@ -1,6 +1,6 @@
-#include "utils/math_utils.h"
+#include "utils/utils.h"
 
-f32 math_clampf(f32 v, f32 lo, f32 hi)
+f32 clampf(f32 v, f32 lo, f32 hi)
 {
     if (v < lo) {
         return lo;
@@ -13,7 +13,7 @@ f32 math_clampf(f32 v, f32 lo, f32 hi)
     return v;
 }
 
-void math_clamp_min_zero_f32(f32* value)
+void clamp_min_zero_f32(f32* value)
 {
     if (!value) {
         return;

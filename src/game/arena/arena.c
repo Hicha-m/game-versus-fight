@@ -149,18 +149,21 @@ void arena_generate_corridor(Arena* arena, u32 seed)
     }
 
     arena->room_count = ROOM_COUNT;
-    arena->current_room = 2;
+    arena->current_room = 3;
 
     for (i = 0; i < ROOM_COUNT; ++i) {
         Room* r = &arena->rooms[i];
+        RoomType type;
         i32 width_tiles = ROOM_DEFAULT_WIDTH_TILES + (i % 3) * 6;
         i32 p0;
         i32 p1;
 
+        type = (RoomType)i;
+
         room_setup_base(
             r,
-            (RoomType)i,
-            (i < 3) ? ROOM_DIR_LEFT_TO_RIGHT : ROOM_DIR_RIGHT_TO_LEFT,
+            type,
+            (i <= 3) ? ROOM_DIR_LEFT_TO_RIGHT : ROOM_DIR_RIGHT_TO_LEFT,
             width_tiles
         );
 

@@ -55,11 +55,4 @@ typedef enum GamePhase {
     GAME_PHASE_GAME_OVER
 } GamePhase;
 
-
-typedef enum Facing {
-    FACING_LEFT = -1,
-    FACING_RIGHT = 1
-} Facing;
-
-
 #endif

@@ -1,9 +1,12 @@
-#include <SDL3/SDL.h>
-
 #include "core/constants.h"
 #include "render/render.h"
 #include "render_internal.h"
-#include "utils/math_utils.h"
+#include "utils/utils.h"
+
+static SDL_Renderer* render_get_renderer(Engine* engine)
+{
+    return (SDL_Renderer*)engine_get_renderer_handle(engine);
+}
 
 bool render_init(RenderContext* render, Engine* engine)
 {
@@ -47,18 +50,24 @@ void render_update_camera(RenderContext* render, const Game* game)
     center_x += PLAYER_WIDTH * 0.5f;
 
     max_camera_x = room_width_px - (f32)WINDOW_WIDTH;
-    math_clamp_min_zero_f32(&max_camera_x);
+    clamp_min_zero_f32(&max_camera_x);
 
-    render->camera.position.x = math_clampf(center_x - (f32)WINDOW_WIDTH * 0.5f, 0.0f, max_camera_x);
+    render->camera.position.x = clampf(center_x - (f32)WINDOW_WIDTH * 0.5f, 0.0f, max_camera_x);
     render->camera.position.y = 0.0f;
 }
 
 void render_draw_room(RenderContext* render, Engine* engine, const Room* room)
 {
+    SDL_Renderer* renderer;
     i32 y;
     i32 x;
 
     if (!render || !engine || !room) {
+        return;
+    }
+
+    renderer = render_get_renderer(engine);
+    if (!renderer) {
         return;
     }
 
@@ -77,14 +86,14 @@ void render_draw_room(RenderContext* render, Engine* engine, const Room* room)
             r.h = (f32)TILE_SIZE;
 
             if (tile == TILE_SOLID) {
-                SDL_SetRenderDrawColor(engine->renderer, 62, 62, 70, 255);
+                SDL_SetRenderDrawColor(renderer, 62, 62, 70, 255);
             } else if (tile == TILE_PLATFORM) {
-                SDL_SetRenderDrawColor(engine->renderer, 95, 95, 110, 255);
+                SDL_SetRenderDrawColor(renderer, 95, 95, 110, 255);
             } else {
-                SDL_SetRenderDrawColor(engine->renderer, 150, 40, 40, 255);
+                SDL_SetRenderDrawColor(renderer, 150, 40, 40, 255);
             }
 
-            SDL_RenderFillRect(engine->renderer, &r);
+            SDL_RenderFillRect(renderer, &r);
         }
     }
 }
@@ -98,9 +107,15 @@ static void draw_sword_line_indicator(
     u8 b
 )
 {
+    SDL_Renderer* renderer;
     SDL_FRect line_rect;
     f32 x = fighter->state.pos.x - render->camera.position.x;
     f32 y = fighter->state.pos.y - render->camera.position.y;
+
+    renderer = render_get_renderer(engine);
+    if (!renderer) {
+        return;
+    }
 
     line_rect.w = 14.0f;
     line_rect.h = 5.0f;
@@ -119,14 +134,20 @@ static void draw_sword_line_indicator(
         line_rect.x = x - line_rect.w;
     }
 
-    SDL_SetRenderDrawColor(engine->renderer, r, g, b, 255);
-    SDL_RenderFillRect(engine->renderer, &line_rect);
+    SDL_SetRenderDrawColor(renderer, r, g, b, 255);
+    SDL_RenderFillRect(renderer, &line_rect);
 }
 
 void render_draw_fighters(RenderContext* render, Engine* engine, const Game* game)
 {
+    SDL_Renderer* renderer;
     const Fighter* p1 = &game->combat.fighters[0];
     const Fighter* p2 = &game->combat.fighters[1];
+
+    renderer = render_get_renderer(engine);
+    if (!renderer) {
+        return;
+    }
 
     if (p1->state.alive) {
         SDL_FRect r1;
@@ -135,8 +156,8 @@ void render_draw_fighters(RenderContext* render, Engine* engine, const Game* gam
         r1.w = PLAYER_WIDTH;
         r1.h = PLAYER_HEIGHT;
 
-        SDL_SetRenderDrawColor(engine->renderer, 255, 176, 43, 255);
-        SDL_RenderFillRect(engine->renderer, &r1);
+        SDL_SetRenderDrawColor(renderer, 255, 176, 43, 255);
+        SDL_RenderFillRect(renderer, &r1);
         draw_sword_line_indicator(render, engine, p1, 255, 235, 190);
     }
 
@@ -147,19 +168,25 @@ void render_draw_fighters(RenderContext* render, Engine* engine, const Game* gam
         r2.w = PLAYER_WIDTH;
         r2.h = PLAYER_HEIGHT;
 
-        SDL_SetRenderDrawColor(engine->renderer, 72, 170, 255, 255);
-        SDL_RenderFillRect(engine->renderer, &r2);
+        SDL_SetRenderDrawColor(renderer, 72, 170, 255, 255);
+        SDL_RenderFillRect(renderer, &r2);
         draw_sword_line_indicator(render, engine, p2, 180, 220, 255);
     }
 }
 
 void render_frame(RenderContext* render, Engine* engine, const Game* game, f32 alpha)
 {
+    SDL_Renderer* renderer;
     const Room* room;
 
     (void)alpha;
 
-    if (!render || !engine || !game || !engine->renderer) {
+    if (!render || !engine || !game) {
+        return;
+    }
+
+    renderer = render_get_renderer(engine);
+    if (!renderer) {
         return;
     }
 
@@ -170,11 +197,11 @@ void render_frame(RenderContext* render, Engine* engine, const Game* game, f32 a
 
     render_update_camera(render, game);
 
-    SDL_SetRenderDrawColor(engine->renderer, 24, 24, 31, 255);
-    SDL_RenderClear(engine->renderer);
+    SDL_SetRenderDrawColor(renderer, 24, 24, 31, 255);
+    SDL_RenderClear(renderer);
 
     render_draw_room(render, engine, room);
     render_draw_fighters(render, engine, game);
 
-    SDL_RenderPresent(engine->renderer);
+    SDL_RenderPresent(renderer);
 }

@@ -3,7 +3,8 @@
 
 #include "game/combat/combat.h"
 #include "combat_internal.h"
-#include "utils/math_utils.h"
+#include "utils/utils.h"
+#include "utils/log.h"
 
 static bool room_ground_contact_at(
     const Room* room,
@@ -176,12 +177,12 @@ void fighter_update_timers(Fighter* fighter, f32 dt)
 
     if (fighter->state.attack_cooldown > 0.0f) {
         fighter->state.attack_cooldown -= dt;
-        math_clamp_min_zero_f32(&fighter->state.attack_cooldown);
+        clamp_min_zero_f32(&fighter->state.attack_cooldown);
     }
 
     if (fighter->state.stun_timer > 0.0f) {
         fighter->state.stun_timer -= dt;
-        math_clamp_min_zero_f32(&fighter->state.stun_timer);
+        clamp_min_zero_f32(&fighter->state.stun_timer);
         if (fighter->state.stun_timer == 0.0f) {
             fighter->state.is_stunned = false;
             fighter->state.action = FIGHTER_ACTION_IDLE;
@@ -190,7 +191,7 @@ void fighter_update_timers(Fighter* fighter, f32 dt)
 
     if (fighter->state.invincibility_timer > 0.0f) {
         fighter->state.invincibility_timer -= dt;
-        math_clamp_min_zero_f32(&fighter->state.invincibility_timer);
+        clamp_min_zero_f32(&fighter->state.invincibility_timer);
     }
 
     if (fighter->state.action_duration > 0.0f) {
@@ -207,7 +208,7 @@ void fighter_update_timers(Fighter* fighter, f32 dt)
 
     if (!fighter->state.grounded) {
         fighter->state.coyote_time -= dt;
-        math_clamp_min_zero_f32(&fighter->state.coyote_time);
+        clamp_min_zero_f32(&fighter->state.coyote_time);
     }
 }
 
@@ -271,7 +272,7 @@ void fighter_apply_gravity(Fighter* fighter, f32 dt)
 
     if (!fighter->state.grounded) {
         fighter->state.vel.y += fighter->stats.gravity * dt;
-        fighter->state.vel.y = math_clampf(fighter->state.vel.y, -10000.0f, fighter->stats.max_fall_speed);
+        fighter->state.vel.y = clampf(fighter->state.vel.y, -10000.0f, fighter->stats.max_fall_speed);
 
         if (!fighter->state.is_attacking && !fighter->state.is_stunned) {
             fighter->state.action = (fighter->state.vel.y < 0.0f) ? FIGHTER_ACTION_JUMP : FIGHTER_ACTION_FALL;
@@ -427,19 +428,16 @@ void combat_resolve_attacks(CombatState* combat)
 }
 
 void combat_check_fall_deaths(CombatState* combat, const Room* room)
-{
-    f32 death_y = (f32)(room->height_tiles * TILE_SIZE + 200);
+{    
+
+    f32 death_y = (f32)((room->height_tiles)*TILE_SIZE - PLAYER_HEIGHT);
 
     if (combat->fighters[0].state.pos.y > death_y) {
         combat->fighters[0].state.alive = false;
-        combat->round_over = true;
-        combat->winner_index = 1;
     }
 
     if (combat->fighters[1].state.pos.y > death_y) {
         combat->fighters[1].state.alive = false;
-        combat->round_over = true;
-        combat->winner_index = 0;
     }
 }
 

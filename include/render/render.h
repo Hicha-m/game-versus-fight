@@ -8,7 +8,7 @@
 
 typedef struct Camera {
     Vec2 position;
-    float zoom;
+    f32 zoom;
 } Camera;
 
 typedef struct RenderContext {

@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "core/constants.h"
+#include "core/types.h"
 #include "engine/engine.h"
 #include "game/game.h"
 #include "render/render.h"
@@ -9,7 +10,7 @@
 
 int main(void)
 {
-    Engine engine;
+    Engine* engine;
     Game game;
     RenderContext render;
 
@@ -23,27 +24,28 @@ int main(void)
     config.window_width = WINDOW_WIDTH;
     config.window_height = WINDOW_HEIGHT;
 
-    if (!engine_init(&engine, &config)) {
-        log_error("engine_init failed");
+    engine = engine_create(&config);
+    if (!engine) {
+        log_error("engine_create failed");
         return 1;
     }
 
-    if (!render_init(&render, &engine)) {
+    if (!render_init(&render, engine)) {
         log_error("render_init failed");
-        engine_shutdown(&engine);
+        engine_destroy(engine);
         return 1;
     }
 
     if (!game_init(&game)) {
         log_error("game_init failed");
         render_shutdown(&render);
-        engine_shutdown(&engine);
+        engine_destroy(engine);
         return 1;
     }
 
     last_counter = engine_now_counter();
 
-    while (engine.running) {
+    while (engine_is_running(engine)) {
         u64 now = engine_now_counter();
         f64 frame_time = engine_counter_seconds(now - last_counter);
         FrameInput input;
@@ -56,10 +58,10 @@ int main(void)
 
         accumulator += frame_time;
 
-        engine_poll_input(&engine, &input);
+        engine_poll_input(engine, &input);
 
         if (input.quit_requested) {
-            engine.running = false;
+            engine_request_stop(engine);
         }
 
         while (accumulator >= FIXED_DT) {
@@ -67,12 +69,12 @@ int main(void)
             accumulator -= FIXED_DT;
         }
 
-        render_frame(&render, &engine, &game, (f32)(accumulator / FIXED_DT));
+        render_frame(&render, engine, &game, (f32)(accumulator / FIXED_DT));
     }
 
     game_shutdown(&game);
     render_shutdown(&render);
-    engine_shutdown(&engine);
+    engine_destroy(engine);
 
     if (memory_has_leaks()) {
         MemoryStats stats = memory_get_stats();

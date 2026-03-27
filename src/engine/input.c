@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "engine/input.h"
+#include "engine_internal.h"
 
 void input_reset_frame(FrameInput* input)
 {
@@ -23,7 +24,6 @@ void input_set_default_keybinds(PlayerKeybind keybinds[MAX_PLAYERS])
 	keybinds[0].up = SDL_SCANCODE_W;
 	keybinds[0].jump = SDL_SCANCODE_SPACE;
 	keybinds[0].thrust = SDL_SCANCODE_J;
-	keybinds[0].throw_weapon = SDL_SCANCODE_K;
 
 	keybinds[1].right = SDL_SCANCODE_RIGHT;
 	keybinds[1].left = SDL_SCANCODE_LEFT;
@@ -31,5 +31,4 @@ void input_set_default_keybinds(PlayerKeybind keybinds[MAX_PLAYERS])
 	keybinds[1].up = SDL_SCANCODE_UP;
 	keybinds[1].jump = SDL_SCANCODE_RSHIFT;
 	keybinds[1].thrust = SDL_SCANCODE_KP_1;
-	keybinds[1].throw_weapon = SDL_SCANCODE_KP_2;
 }

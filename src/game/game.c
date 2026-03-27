@@ -11,10 +11,10 @@ void game_start_match(Game* game)
 
 static SwordLine input_to_sword_line(i32 move_y)
 {
-    if (move_y < 0) {
+    if (move_y > 0) {
         return SWORD_LINE_HIGH;
     }
-    if (move_y > 0) {
+    if (move_y < 0) {
         return SWORD_LINE_LOW;
     }
     return SWORD_LINE_MID;
@@ -157,7 +157,7 @@ bool game_init(Game* game)
     ai_set_algorithm(&game->ai_controllers[0], AI_ALGO_SCRIPTED);
 
     game->combat.fighters[1].controller.type = CONTROLLER_AI;
-    ai_set_difficulty(&game->ai_controllers[1], AI_DIFFICULTY_MEDIUM);
+    ai_set_difficulty(&game->ai_controllers[1], AI_DIFFICULTY_EXPERT);
     ai_set_algorithm(&game->ai_controllers[1], AI_ALGO_MINIMAX_ALPHA_BETA);
 
     game_start_match(game);

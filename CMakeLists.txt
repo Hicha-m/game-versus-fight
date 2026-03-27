@@ -44,7 +44,11 @@ add_executable(game_app
 )
 
 target_link_libraries(game_app PRIVATE game_core)
-target_link_libraries(game_core PUBLIC SDL3::SDL3 m)
+target_link_libraries(game_core PUBLIC SDL3::SDL3)  
+
+if(NOT MSVC AND NOT WIN32)  
+    target_link_libraries(game_core PUBLIC m)  
+endif()  
 
 option(GAME_BUILD_TESTS "Build legacy tests" OFF)
 

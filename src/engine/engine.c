@@ -1,7 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-
-#include <SDL3/SDL.h>
 
 #include "core/constants.h"
 #include "engine/engine.h"
@@ -33,22 +32,26 @@ static void fill_player_input_from_keybind(
     bool throw_down = keys[bind->throw_weapon];
 
     out_current->move_x = (right_down ? 1 : 0) - (left_down ? 1 : 0);
-    out_current->move_y = (down_down ? 1 : 0) - (up_down ? 1 : 0);
+    out_current->move_y = (up_down ? 1 : 0) - (down_down ? 1 : 0);
 
     out_current->jump = make_button(jump_down, previous->jump.down);
     out_current->thrust = make_button(thrust_down, previous->thrust.down);
     out_current->throw_weapon = make_button(throw_down, previous->throw_weapon.down);
 }
 
-bool engine_init(Engine* engine, const EngineConfig* config)
+Engine* engine_create(const EngineConfig* config)
 {
+    Engine* engine;
     u32 sdl_init_flags;
 
-    if (!engine || !config) {
-        return false;
+    if (!config) {
+        return NULL;
     }
 
-    memset(engine, 0, sizeof(*engine));
+    engine = (Engine*)calloc(1, sizeof(*engine));
+    if (!engine) {
+        return NULL;
+    }
 
     #if defined(GAME_TEST_MODE)
     sdl_init_flags = SDL_INIT_VIDEO;
@@ -58,7 +61,8 @@ bool engine_init(Engine* engine, const EngineConfig* config)
 
     if (!SDL_Init(sdl_init_flags)) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
-        return false;
+        free(engine);
+        return NULL;
     }
 
     engine->window = SDL_CreateWindow(
@@ -71,7 +75,8 @@ bool engine_init(Engine* engine, const EngineConfig* config)
     if (!engine->window) {
         fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
         SDL_Quit();
-        return false;
+        free(engine);
+        return NULL;
     }
 
     engine->renderer = SDL_CreateRenderer(engine->window, NULL);
@@ -80,17 +85,18 @@ bool engine_init(Engine* engine, const EngineConfig* config)
         SDL_DestroyWindow(engine->window);
         engine->window = NULL;
         SDL_Quit();
-        return false;
+        free(engine);
+        return NULL;
     }
 
     input_set_default_keybinds(engine->keybinds);
     input_reset_frame(&engine->previous_input);
 
     engine->running = true;
-    return true;
+    return engine;
 }
 
-void engine_shutdown(Engine* engine)
+void engine_destroy(Engine* engine)
 {
     if (!engine) {
         return;
@@ -108,6 +114,25 @@ void engine_shutdown(Engine* engine)
 
     engine->running = false;
     SDL_Quit();
+    free(engine);
+}
+
+bool engine_is_running(const Engine* engine)
+{
+    if (!engine) {
+        return false;
+    }
+
+    return engine->running;
+}
+
+void engine_request_stop(Engine* engine)
+{
+    if (!engine) {
+        return;
+    }
+
+    engine->running = false;
 }
 
 void engine_apply_keyboard_to_frame_input(
@@ -157,6 +182,24 @@ void engine_poll_input(Engine* engine, FrameInput* out_input)
     }
 
     engine->previous_input = *out_input;
+}
+
+void* engine_get_window_handle(Engine* engine)
+{
+    if (!engine) {
+        return NULL;
+    }
+
+    return (void*)engine->window;
+}
+
+void* engine_get_renderer_handle(Engine* engine)
+{
+    if (!engine) {
+        return NULL;
+    }
+
+    return (void*)engine->renderer;
 }
 
 u64 engine_now_counter(void)
