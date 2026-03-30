@@ -14,7 +14,6 @@
 #define BUTTON_WIDTH 150.0f
 #define BUTTON_HEIGHT 50.0f
 
-/* Helper: Draw text centered */
 static void render_victory_text_centered(
     SDL_Renderer* renderer,
     f32 x,
@@ -32,7 +31,6 @@ static void render_victory_text_centered(
     SDL_RenderDebugText(renderer, x - 50.0f, y, text);
 }
 
-/* Helper: Draw rectangle with border */
 static void render_victory_button(
     SDL_Renderer* renderer,
     f32 x,
@@ -45,7 +43,6 @@ static void render_victory_button(
 {
     SDL_FRect rect = {x - w / 2, y, w, h};
 
-    /* Draw background */
     if (highlighted) {
         SDL_SetRenderDrawColor(renderer, 100, 200, 100, 255);
     } else {
@@ -53,11 +50,9 @@ static void render_victory_button(
     }
     SDL_RenderFillRect(renderer, &rect);
 
-    /* Draw border */
     SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
     SDL_RenderRect(renderer, &rect);
 
-    /* Draw text */
     render_victory_text_centered(renderer, x, y + 15.0f, text, 240, 240, 240);
 }
 
@@ -73,24 +68,20 @@ void render_victory_screen(SDL_Renderer* renderer, const Game* game, i32 winner_
 
     stats = &game->match_stats;
 
-    /* Clear background */
     SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
     SDL_RenderClear(renderer);
 
-    /* Draw title */
     if (winner_index == 0) {
         render_victory_text_centered(renderer, VICTORY_CENTER_X, TITLE_Y, "PLAYER 1 WINS!", 0, 255, 100);
     } else {
         render_victory_text_centered(renderer, VICTORY_CENTER_X, TITLE_Y, "PLAYER 2 WINS!", 255, 100, 0);
     }
 
-    /* Draw separator line */
     y_offset = TITLE_Y + 40.0f;
     SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
     SDL_FRect line_rect = {100.0f, y_offset, WINDOW_WIDTH - 200.0f, 2.0f};
     SDL_RenderFillRect(renderer, &line_rect);
 
-    /* Draw stats */
     y_offset = STATS_Y_START;
 
     snprintf(buffer, sizeof(buffer), "Rounds Won: %d", stats->wins[winner_index]);
@@ -108,7 +99,6 @@ void render_victory_screen(SDL_Renderer* renderer, const Game* game, i32 winner_
     snprintf(buffer, sizeof(buffer), "Rooms Conquered: %d", stats->room_progress);
     render_victory_text_centered(renderer, VICTORY_CENTER_X, y_offset, buffer, 100, 200, 255);
 
-    /* Draw continue button */
     render_victory_button(
         renderer,
         VICTORY_CENTER_X,

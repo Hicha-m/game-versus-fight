@@ -8,10 +8,6 @@
 #define MENU_ITEM_Y_START 200
 #define MENU_CENTER_X (WINDOW_WIDTH / 2)
 
-/* ========================================
-   Helper Functions - Text Rendering
-   ======================================== */
-
 static void render_menu_text(SDL_Renderer* renderer, f32 x, f32 y, const char* text)
 {
     if (!renderer || !text) {
@@ -33,7 +29,6 @@ static void render_menu_option(
 {
     SDL_FRect rect = {x, y, w, h};
 
-    /* Draw background */
     if (selected) {
         SDL_SetRenderDrawColor(renderer, 100, 200, 100, 255);
     } else {
@@ -41,13 +36,8 @@ static void render_menu_option(
     }
     SDL_RenderFillRect(renderer, &rect);
 
-    /* Draw text */
     render_menu_text(renderer, x + 10.0f, y + 15.0f, text);
 }
-
-/* ========================================
-   Menu State Renderers
-   ======================================== */
 
 static void render_menu_main(SDL_Renderer* renderer, const MenuContext* menu)
 {
@@ -233,7 +223,6 @@ static void render_menu_pause(SDL_Renderer* renderer, const MenuContext* menu)
     }
 }
 
-/* NEW: Arena mode selection (Default, Procedural, Corridor) */
 static void render_menu_arena_mode(SDL_Renderer* renderer, const MenuContext* menu)
 {
     const char* labels[] = {
@@ -259,7 +248,6 @@ static void render_menu_arena_mode(SDL_Renderer* renderer, const MenuContext* me
     }
 }
 
-/* NEW: Arena difficulty slider (0-10) */
 static void render_menu_arena_difficulty(SDL_Renderer* renderer, const MenuContext* menu)
 {
     char difficulty_text[64];
@@ -270,11 +258,9 @@ static void render_menu_arena_difficulty(SDL_Renderer* renderer, const MenuConte
     snprintf(difficulty_text, sizeof(difficulty_text), "DIFFICULTY: %d / 10", difficulty);
     render_menu_text(renderer, MENU_CENTER_X - 150.0f, 180.0f, difficulty_text);
 
-    /* Simple visual bar */
     render_menu_text(renderer, MENU_CENTER_X - 150.0f, 250.0f, "LEFT/RIGHT: Adjust | SPACE/J: Next");
 }
 
-/* NEW: Arena seed display */
 static void render_menu_arena_seed(SDL_Renderer* renderer, const MenuContext* menu)
 {
     char seed_text[64];
@@ -287,10 +273,6 @@ static void render_menu_arena_seed(SDL_Renderer* renderer, const MenuContext* me
     render_menu_text(renderer, MENU_CENTER_X - 200.0f, 250.0f, "AUTO-GENERATED FOR RANDOMIZATION");
     render_menu_text(renderer, MENU_CENTER_X - 150.0f, 300.0f, "SPACE/J: Start | K: Back");
 }
-
-/* ========================================
-   Public API
-   ======================================== */
 
 void render_menu(SDL_Renderer* renderer, const MenuContext* menu)
 {
@@ -332,7 +314,7 @@ void render_menu(SDL_Renderer* renderer, const MenuContext* menu)
             render_menu_pause(renderer, menu);
             instructions = "UP/DOWN: Choose | SPACE/J: Select | ESC: Resume";
             break;
-        /* NEW: Arena configuration states */
+
         case MENU_STATE_ARENA_MODE:
             render_menu_arena_mode(renderer, menu);
             instructions = "LEFT/RIGHT: Choose | SPACE/J: Select | K: Back";
@@ -350,7 +332,6 @@ void render_menu(SDL_Renderer* renderer, const MenuContext* menu)
             break;
     }
 
-    /* Display instructions at the bottom */
     if (instructions) {
         SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
         SDL_RenderDebugText(renderer, 50.0f, WINDOW_HEIGHT - 40.0f, instructions);

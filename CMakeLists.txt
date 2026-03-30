@@ -30,7 +30,6 @@ add_library(game_core STATIC
     src/render/render.c
     src/render/render_menu.c
     src/render/render_victory.c
-    src/render/animation.c
     src/render/assets.c
 
     src/utils/log.c

@@ -32,7 +32,6 @@ void fill_player_input_from_keybind(
     PlayerInput* out_current
 );
 
-
 void engine_apply_keyboard_to_frame_input(
     Engine* engine,
     const bool* keys,

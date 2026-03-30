@@ -10,7 +10,6 @@ typedef struct InputState {
     bool released;
 } InputState;
 
-
 typedef enum {
     ACTION_RIGHT,
     ACTION_LEFT,
@@ -27,15 +26,12 @@ typedef struct {
     InputState actions [ACTION_COUNT];
 } PlayerInput;
 
-
 typedef struct FrameInput {
     PlayerInput players[MAX_PLAYERS];
     InputState pause;
     bool quit_requested;
 } FrameInput;
 
-
-/* Helpers */
 void input_reset_frame(FrameInput* input);
 void input_clear_edges(FrameInput* input);
 void input_accumulate_frame(FrameInput* accumulated, const FrameInput* sampled);

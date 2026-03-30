@@ -97,7 +97,6 @@ void fighter_apply_command(Fighter* fighter, const PlayerCommand* cmd, f32 dt)
         fighter->state.sword_line = line;
     }
 
-
     if (cmd->thrust_pressed && fighter->state.grounded) {
         fighter->state.thrust_buffer_timer = THRUST_INPUT_BUFFER_TIME;
     }

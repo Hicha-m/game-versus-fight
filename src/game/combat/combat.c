@@ -121,14 +121,12 @@ static void combat_update_kill_priority_timer(CombatState* combat, f32 dt)
         return;
     }
 
-    /* Increment timer tracking how long since the kill */
     if (combat->kill_attacker_index >= 0 && combat->kill_attacker_index < MAX_PLAYERS) {
         combat->kill_attacker_timer += dt;
     }
-    
-    /* Reset if killer died or window expired */
+
     if (combat->kill_attacker_timer > CAMERA_KILL_PRIORITY_WINDOW ||
-        (combat->kill_attacker_index >= 0 && 
+        (combat->kill_attacker_index >= 0 &&
          !combat->fighters[combat->kill_attacker_index].state.alive)) {
         combat->kill_attacker_index = -1;
         combat->kill_attacker_timer = 0.0f;
@@ -148,7 +146,7 @@ static void combat_check_camera_distance_kill(CombatState* combat, Arena* arena)
     f32 victim_x;
 
     if (!combat || !arena ||
-        combat->kill_attacker_index < 0 || 
+        combat->kill_attacker_index < 0 ||
         combat->kill_attacker_index >= MAX_PLAYERS) {
         return;
     }
@@ -167,15 +165,12 @@ static void combat_check_camera_distance_kill(CombatState* combat, Arena* arena)
         return;
     }
 
-    /* Calculate camera center position (follower after killer) */
     killer_x = killer->state.pos.x + PLAYER_WIDTH * 0.5f;
     camera_center_x = killer_x;
 
-    /* Calculate distance from camera to victim */
     victim_x = victim->state.pos.x + PLAYER_WIDTH * 0.5f;
     victim_distance_from_camera = fabsf(victim_x - camera_center_x);
 
-    /* If victim is too far from camera, they die (pursed off-screen) */
     if (victim_distance_from_camera > CAMERA_MAX_DISTANCE) {
         victim->state.alive = false;
         combat->kill_happened = true;
@@ -213,7 +208,6 @@ static void fighter_reset_runtime(Fighter* fighter)
 
     fighter->state.alive = true;
 }
-
 
 bool combat_init(CombatState* combat)
 {
@@ -292,7 +286,6 @@ void combat_reset_round(CombatState* combat, const Arena* arena)
     }
 }
 
-
 void combat_resolve_facing(Fighter* left, Fighter* right)
 {
     if (left->state.pos.x < right->state.pos.x) {
@@ -358,8 +351,7 @@ void combat_step(
     combat_check_fall_deaths(combat, room);
     combat_update_respawns(combat, room, dt);
     combat_resolve_facing(p1, p2);
-    
-    /* Update killer priority window and check distance-based elimination */
+
     combat_update_kill_priority_timer(combat, dt);
     combat_check_camera_distance_kill(combat, arena);
 }

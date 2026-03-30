@@ -6,7 +6,6 @@
 #include "game_internal.h"
 #include "utils/log.h"
 
-/* Global flag to request quit from menu */
 static bool game_quit_requested = false;
 static bool game_rng_seeded = false;
 
@@ -40,7 +39,6 @@ void game_start_match(Game* game)
     combat_reset_round(&game->combat, &game->arena);
 }
 
-/* Allow menu to change arena options before match starts */
 void game_set_arena_options(Game* game, const ArenaOptions* options)
 {
     if (game && options) {
@@ -48,7 +46,6 @@ void game_set_arena_options(Game* game, const ArenaOptions* options)
     }
 }
 
-/* Regenerate arena with current options (useful for menu preview) */
 bool game_regenerate_arena(Game* game)
 {
     if (!game) {
@@ -81,35 +78,21 @@ static void game_update_room_push_from_kill(Game* game)
     game->combat.kill_happened = false;
 }
 
-/* Check if a player has reached the enemy base */
 static i32 game_check_victory(Game* game)
 {
     if (!game) {
         return -1;
     }
 
-    /* Player 0 wins if they reach room 4 (END_B) */
     if (game->arena.current_room == ROOM_COUNT - 1) {
         return 0;
     }
 
-    /* Player 1 wins if they reach room 0 (START_A) */
     if (game->arena.current_room == 0) {
         return 1;
     }
 
     return -1;
-}
-
-static SwordLine input_to_sword_line(i32 move_y)
-{
-    if (move_y > 0) {
-        return SWORD_LINE_HIGH;
-    }
-    if (move_y < 0) {
-        return SWORD_LINE_LOW;
-    }
-    return SWORD_LINE_MID;
 }
 
 void game_build_player_command_from_input(
@@ -179,12 +162,12 @@ void game_handle_room_transitions(Game* game)
     p2 = &game->combat.fighters[1];
 
     if (game->room_push_direction > 0) {
-        /* Only P1 (attacker) can progress to the right */
+
         if (arena_can_transition_right(&game->arena, &p1->state.pos)) {
             moved = arena_transition_right(&game->arena);
         }
     } else if (game->room_push_direction < 0) {
-        /* Only P2 (defender) can progress to the left */
+
         if (arena_can_transition_left(&game->arena, &p2->state.pos)) {
             moved = arena_transition_left(&game->arena);
         }
@@ -235,15 +218,12 @@ bool game_init(Game* game)
 
     game->phase = GAME_PHASE_MENU;
 
-    /* Initialize menu */
     if (!menu_init(&game->menu)) {
         return false;
     }
 
-    /* Initialize arena options (default mode) */
     game->arena_options = arena_options_default();
 
-    /* Initialize arena with options */
     if (!arena_init_with_options(&game->arena, &game->arena_options)) {
         menu_shutdown(&game->menu);
         return false;
@@ -270,7 +250,6 @@ bool game_init(Game* game)
     ai_set_difficulty(&game->ai_controllers[1], AI_DIFFICULTY_EXPERT);
     ai_set_algorithm(&game->ai_controllers[1], AI_ALGO_MINIMAX_ALPHA_BETA);
 
-    /* Don't start match yet - wait for menu selection */
     return true;
 }
 
@@ -303,7 +282,7 @@ void game_update(Game* game, const FrameInput* input, f32 dt)
 
         switch (menu_action) {
             case MENU_ACTION_PLAY_SOLO:
-                /* Setup solo match: P1 human, P2 AI */
+
                 game->combat.fighters[0].controller.type = CONTROLLER_HUMAN;
                 game->combat.fighters[1].controller.type = CONTROLLER_AI;
                 ai_set_difficulty(&game->ai_controllers[1], game->menu.selected_difficulty);
@@ -312,7 +291,7 @@ void game_update(Game* game, const FrameInput* input, f32 dt)
                 break;
 
             case MENU_ACTION_PLAY_MULTIPLAYER:
-                /* Setup multiplayer: both human */
+
                 game->combat.fighters[0].controller.type = CONTROLLER_HUMAN;
                 game->combat.fighters[1].controller.type = CONTROLLER_HUMAN;
                 game_start_match(game);
@@ -320,13 +299,11 @@ void game_update(Game* game, const FrameInput* input, f32 dt)
                 break;
 
             case MENU_ACTION_START_MATCH: {
-                /* NEW: Arena-configured match start */
-                /* Apply arena options before starting */
+
                 const ArenaOptions* opts = menu_get_arena_options(&game->menu);
                 if (opts) {
                     ArenaOptions run_opts = *opts;
 
-                    /* Procedural/corridor maps always use a fresh random seed. */
                     if (run_opts.mode == ARENA_MODE_PROCEDURAL || run_opts.mode == ARENA_MODE_CORRIDOR) {
                         run_opts.seed = game_random_seed();
                     }
@@ -335,7 +312,6 @@ void game_update(Game* game, const FrameInput* input, f32 dt)
                     game_regenerate_arena(game);
                 }
 
-                /* Setup based on solo vs multiplayer selection */
                 if (game->menu.is_solo) {
                     game->combat.fighters[0].controller.type = CONTROLLER_HUMAN;
                     game->combat.fighters[1].controller.type = CONTROLLER_AI;
@@ -351,7 +327,7 @@ void game_update(Game* game, const FrameInput* input, f32 dt)
             }
 
             case MENU_ACTION_QUIT:
-                /* Set quit flag to be checked by engine */
+
                 game_quit_requested = true;
                 break;
 
@@ -362,7 +338,6 @@ void game_update(Game* game, const FrameInput* input, f32 dt)
         return;
     }
 
-    /* Handle pause menu */
     if (game->phase == GAME_PHASE_PAUSED) {
         menu_update(&game->menu, input, dt);
         menu_action = menu_get_action(&game->menu);
@@ -382,9 +357,8 @@ void game_update(Game* game, const FrameInput* input, f32 dt)
         return;
     }
 
-    /* Handle victory screen */
     if (game->phase == GAME_PHASE_VICTORY) {
-        /* Wait for any input to return to menu */
+
         if (input->players[0].actions[ACTION_THRUST].pressed ||
             input->players[1].actions[ACTION_THRUST].pressed ||
             input->pause.pressed) {
@@ -394,7 +368,6 @@ void game_update(Game* game, const FrameInput* input, f32 dt)
         return;
     }
 
-    /* Handle entering pause menu */
     if (input->pause.pressed) {
         if (game->phase == GAME_PHASE_MATCH) {
             game->phase = GAME_PHASE_PAUSED;
@@ -418,18 +391,16 @@ void game_update(Game* game, const FrameInput* input, f32 dt)
 
     game_handle_room_transitions(game);
 
-    /* Check if victory has been achieved */
     {
         i32 winner = game_check_victory(game);
         if (winner >= 0 && winner < MAX_PLAYERS) {
-            /* Set winner before finalizing stats */
+
             game->combat.winner_index = winner;
-            
-            /* Record the final round stats (win + kill) */
+
             game->match_stats.rounds_played++;
             game->match_stats.wins[winner]++;
             game->match_stats.kills[winner]++;
-            
+
             game->victory_winner_index = winner;
             game->phase = GAME_PHASE_VICTORY;
         }

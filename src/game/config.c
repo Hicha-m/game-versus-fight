@@ -6,10 +6,6 @@
 #include "game/config.h"
 #include "utils/log.h"
 
-/* ========================================
-   Default Keybindings
-   ======================================== */
-
 static void keybind_set_defaults_p1(PlayerKeybindConfig* kb)
 {
     if (!kb) return;
@@ -33,10 +29,6 @@ static void keybind_set_defaults_p2(PlayerKeybindConfig* kb)
     kb->keys[ACTION_THRUST] = SDL_SCANCODE_RCTRL;
     kb->keys[ACTION_THROW] = SDL_SCANCODE_RSHIFT;
 }
-
-/* ========================================
-   Public API
-   ======================================== */
 
 void config_set_defaults(GameConfig* config)
 {
@@ -66,7 +58,6 @@ bool config_validate(const GameConfig* config)
         return false;
     }
 
-    /* Validate volumes */
     if (config->master_volume < 0.0f || config->master_volume > 1.0f) {
         return false;
     }
@@ -77,17 +68,12 @@ bool config_validate(const GameConfig* config)
         return false;
     }
 
-    /* Validate difficulty */
     if (config->ai_difficulty < AI_DIFFICULTY_EASY || config->ai_difficulty > AI_DIFFICULTY_EXPERT) {
         return false;
     }
 
     return true;
 }
-
-/* ========================================
-   I/O - Loading/Saving JSON Config
-   ======================================== */
 
 bool config_load(GameConfig* config)
 {
@@ -108,9 +94,8 @@ bool config_load(GameConfig* config)
         return true;
     }
 
-    /* Very simple JSON parsing - look for key patterns */
     while (fgets(buffer, sizeof(buffer), f)) {
-        /* Parse audio settings */
+
         if (sscanf(buffer, "    \"master_volume\": %f", &config->master_volume) == 1) {
             continue;
         }
@@ -121,7 +106,6 @@ bool config_load(GameConfig* config)
             continue;
         }
 
-        /* Parse gameplay settings */
         if (sscanf(buffer, "    \"ai_difficulty\": %d", &ai_diff) == 1) {
             config->ai_difficulty = (AIDifficulty)ai_diff;
             continue;
@@ -141,7 +125,6 @@ bool config_load(GameConfig* config)
             continue;
         }
 
-        /* Parse player 1 keybinds */
         for (i32 i = 0; i < ACTION_COUNT; i++) {
             i32 scancode;
             if (sscanf(buffer, "      \"key_%d\": %d", &i, &scancode) == 2 && i < ACTION_COUNT) {
@@ -150,7 +133,6 @@ bool config_load(GameConfig* config)
             }
         }
 
-        /* Parse player 2 keybinds */
         for (i32 i = 0; i < ACTION_COUNT; i++) {
             i32 scancode;
             if (sscanf(buffer, "      \"key_%d\": %d", &i, &scancode) == 2 && i < ACTION_COUNT) {

@@ -20,32 +20,26 @@ typedef struct MatchStats {
 typedef struct Game {
     GamePhase phase;
 
-    /* Menu */
     MenuContext menu;
 
-    /* Match */
     Arena arena;
-    ArenaOptions arena_options;    /* Options for arena generation */
+    ArenaOptions arena_options;
     CombatState combat;
     AIController ai_controllers[MAX_PLAYERS];
     MatchStats match_stats;
 
-    i32 room_push_direction; /* +1 => right, -1 => left, 0 => locked (need kill) */
-    i32 victory_winner_index; /* Index of winner when phase is GAME_PHASE_VICTORY */
+    i32 room_push_direction;
+    i32 victory_winner_index;
 } Game;
 
-/* Lifecycle */
 bool game_init(Game* game);
 void game_shutdown(Game* game);
 
-/* Tick gameplay global */
 void game_update(Game* game, const FrameInput* input, f32 dt);
 
-/* Arena options management */
 void game_set_arena_options(Game* game, const ArenaOptions* options);
 bool game_regenerate_arena(Game* game);
 
-/* Check if quit was requested from menu */
 bool game_is_quit_requested(void);
 
 #endif

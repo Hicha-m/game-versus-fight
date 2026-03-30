@@ -24,7 +24,6 @@ typedef struct AIMetrics {
     u64 estimated_memory_bytes;
 } AIMetrics;
 
-/* État discret destiné à l'algorithme */
 typedef struct AIDecisionState {
     i32 current_room;
     i32 room_count;
@@ -67,23 +66,18 @@ typedef struct AIController {
     AIMetrics metrics;
 } AIController;
 
-/* Lifecycle */
 bool ai_init(AIController* ai);
 void ai_shutdown(AIController* ai);
 
 void ai_default_weights(AIHeuristicWeights* out_weights);
 
-
-/* Configuration */
 void ai_set_difficulty(AIController* ai, AIDifficulty difficulty);
 void ai_set_algorithm(AIController* ai, AIAlgorithm algorithm);
 void ai_set_gameplay_mode(AIController* ai, AIGameplayMode mode);
 void ai_reset_metrics(AIController* ai);
 
-/* Heuristiques selon le mode de gameplay */
 void ai_weights_for_mode(AIHeuristicWeights* out_weights, AIGameplayMode mode);
 
-/* État discret */
 void ai_build_decision_state(
     AIDecisionState* out_state,
     const Arena* arena,
@@ -91,18 +85,15 @@ void ai_build_decision_state(
     i32 self_index
 );
 
-/* Évaluation heuristique */
 f32 ai_evaluate_state(const AIDecisionState* state, const AIHeuristicWeights* weights);
 
-/* Décision */
 PlayerCommand ai_think(
     AIController* ai,
     const Arena* arena,
     const CombatState* combat,
     i32 self_index,
     f32 dt,
-    const i32* player_kills  /* Array of 2 ints: kills[0] and kills[1] */
+    const i32* player_kills
 );
 
 #endif
-

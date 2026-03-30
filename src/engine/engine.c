@@ -24,7 +24,7 @@ Engine* engine_create(const EngineConfig* config)
     u32 sdl_init_flags;
     SDL_WindowFlags window_flags;
 
-    if (!config) { 
+    if (!config) {
         return NULL;
     }
 
