@@ -6,3 +6,4 @@ build-make
 build-tests
 *.log
 .vscode
+game_config.json
