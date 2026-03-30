@@ -5,6 +5,135 @@
 
 #include "game/ai/ai.h"
 #include "ai_internal.h"
+#include "utils/log.h"
+
+static bool ai_profile_logging_enabled(void)
+{
+    static i32 cached = -1;
+    const char* env;
+
+    if (cached >= 0) {
+        return cached == 1;
+    }
+
+    env = getenv("AI_PROFILE");
+    if (!env) {
+        cached = 1;
+        return true;
+    }
+
+    if (
+        strcmp(env, "0") == 0 ||
+        strcmp(env, "false") == 0 ||
+        strcmp(env, "FALSE") == 0 ||
+        strcmp(env, "off") == 0 ||
+        strcmp(env, "OFF") == 0
+    ) {
+        cached = 0;
+        return false;
+    }
+
+    cached = 1;
+    return true;
+}
+
+static u64 ai_estimate_full_tree_nodes(i32 depth, bool* out_overflow)
+{
+    const u64 max_u64 = ~(u64)0;
+    u64 total = 0;
+    u64 level_nodes = 1;
+    i32 d;
+
+    if (out_overflow) {
+        *out_overflow = false;
+    }
+
+    if (depth < 0) {
+        return 0;
+    }
+
+    for (d = 0; d <= depth; ++d) {
+        if (total > max_u64 - level_nodes) {
+            if (out_overflow) {
+                *out_overflow = true;
+            }
+            return max_u64;
+        }
+        total += level_nodes;
+
+        if (d < depth) {
+            if (level_nodes > max_u64 / 8ULL) {
+                if (out_overflow) {
+                    *out_overflow = true;
+                }
+                return max_u64;
+            }
+            level_nodes *= 8ULL;
+        }
+    }
+
+    return total;
+}
+
+static void ai_log_profile_sample(
+    const AIController* ai,
+    i32 self_index,
+    i32 depth,
+    i32 best_action_index,
+    f32 dt
+)
+{
+    static f32 log_accumulator_s[MAX_PLAYERS] = {0.0f, 0.0f};
+    static u64 sample_counter[MAX_PLAYERS] = {0ULL, 0ULL};
+    bool overflow = false;
+    u64 full_tree_nodes;
+    const u64 max_u64 = ~(u64)0;
+    f64 prune_pct = 0.0;
+    f32 step_s;
+
+    if (!ai || self_index < 0 || self_index >= MAX_PLAYERS) {
+        return;
+    }
+
+    if (!ai_profile_logging_enabled()) {
+        return;
+    }
+
+    step_s = (dt > 0.0f) ? dt : (1.0f / 60.0f);
+    log_accumulator_s[self_index] += step_s;
+
+    if (log_accumulator_s[self_index] < 1.0f) {
+        return;
+    }
+
+    log_accumulator_s[self_index] = 0.0f;
+    sample_counter[self_index]++;
+
+    full_tree_nodes = ai_estimate_full_tree_nodes(depth, &overflow);
+
+    if (full_tree_nodes > 0 && !overflow) {
+        prune_pct = 100.0 * (1.0 - ((f64)ai->metrics.nodes_expanded / (f64)full_tree_nodes));
+        if (prune_pct < 0.0) {
+            prune_pct = 0.0;
+        }
+    }
+
+    log_info(
+        "AI[P%d] sample=%llu depth=%d complexity=O(8^d) full_tree=%s%llu nodes=%llu leaves=%llu cutoffs=%llu prune=%.1f%% think=%.3fms mem=%.1fKB action_idx=%d",
+        self_index + 1,
+        (unsigned long long)sample_counter[self_index],
+        depth,
+        overflow ? ">=" : "",
+        (unsigned long long)(overflow ? max_u64 : full_tree_nodes),
+        (unsigned long long)ai->metrics.nodes_expanded,
+        (unsigned long long)ai->metrics.leaves_evaluated,
+        (unsigned long long)ai->metrics.cutoffs,
+        prune_pct,
+        ai->metrics.think_time_ms,
+        (f32)ai->metrics.estimated_memory_bytes / 1024.0f,
+        best_action_index
+    );
+}
 
 static i32 difficulty_to_depth(AIDifficulty difficulty)
 {
@@ -601,7 +730,6 @@ PlayerCommand ai_think(
     f64 start_ms;
     f64 end_ms;
 
-    (void)dt;
     (void)player_kills;  /* Variable non utilisée dans la nouvelle logique */
 
     if (!arena || !combat || self_index < 0 || self_index >= MAX_PLAYERS) {
@@ -662,6 +790,7 @@ PlayerCommand ai_think(
             ai->metrics.think_time_ms = 0.0;
         }
         ai->metrics.estimated_memory_bytes = ai->metrics.nodes_expanded * (u64)sizeof(AIDecisionState);
+        ai_log_profile_sample(ai, self_index, depth, best_action_index, dt);
     }
 
     best_cmd = ai_action_to_command(prioritized_actions[best_action_index]);

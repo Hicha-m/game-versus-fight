@@ -23,6 +23,6 @@ bool render_init(RenderContext* render, Engine* engine);
 void render_shutdown(RenderContext* render);
 
 /* Frame */
-void render_frame(RenderContext* render, Engine* engine, const Game* game, f32 alpha);
+void render_frame(RenderContext* render, Engine* engine, const Game* game);
 
 #endif

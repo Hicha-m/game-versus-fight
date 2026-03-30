@@ -94,6 +94,7 @@ bool config_load(GameConfig* config)
     FILE* f;
     char buffer[2048];
     i32 ai_diff, fullscreen;
+    char fullscreen_token[16];
 
     if (!config) {
         return false;
@@ -124,6 +125,16 @@ bool config_load(GameConfig* config)
         if (sscanf(buffer, "    \"ai_difficulty\": %d", &ai_diff) == 1) {
             config->ai_difficulty = (AIDifficulty)ai_diff;
             continue;
+        }
+        if (sscanf(buffer, "    \"fullscreen\": %15[^,\n\r ]", fullscreen_token) == 1) {
+            if (strcmp(fullscreen_token, "true") == 0) {
+                config->fullscreen = true;
+                continue;
+            }
+            if (strcmp(fullscreen_token, "false") == 0) {
+                config->fullscreen = false;
+                continue;
+            }
         }
         if (sscanf(buffer, "    \"fullscreen\": %d", &fullscreen) == 1) {
             config->fullscreen = (bool)fullscreen;

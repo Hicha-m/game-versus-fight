@@ -297,7 +297,6 @@ void game_update(Game* game, const FrameInput* input, f32 dt)
         return;
     }
 
-    /* Handle menu state */
     if (game->phase == GAME_PHASE_MENU) {
         menu_update(&game->menu, input, dt);
         menu_action = menu_get_action(&game->menu);

@@ -62,6 +62,7 @@ void render_update_camera(RenderContext* render, const Game* game)
     i32 focus_fighter_index = -1;
     const Fighter* focus_fighter = NULL;
     const Fighter* enemy_fighter = NULL;
+    bool focus_has_room_push_advantage = false;
     f32 target_x;
 
     if (!render || !game) {
@@ -75,9 +76,10 @@ void render_update_camera(RenderContext* render, const Game* game)
 
     room_width_px = (f32)(room->width_tiles * TILE_SIZE);
 
-    /* Determine which fighter to follow:
-       Priority 1: The attacker who just killed (if kill was recent)
-       Priority 2: Both fighters' center */
+     /* Determine which fighter to follow:
+         Priority 1: The attacker who just killed (if kill was recent)
+         Priority 2: Active room-push owner (winner advantage)
+         Priority 3: Both fighters' center */
     if (game->combat.kill_happened && game->combat.kill_attacker_index >= 0 &&
         game->combat.kill_attacker_index < MAX_PLAYERS) {
         focus_fighter_index = game->combat.kill_attacker_index;
@@ -90,14 +92,30 @@ void render_update_camera(RenderContext* render, const Game* game)
         focus_fighter_index = game->combat.kill_attacker_index;
         focus_fighter = &game->combat.fighters[focus_fighter_index];
         enemy_fighter = &game->combat.fighters[1 - focus_fighter_index];
+    } else if (game->room_push_direction > 0) {
+        focus_fighter_index = 0;
+        focus_fighter = &game->combat.fighters[focus_fighter_index];
+        enemy_fighter = &game->combat.fighters[1 - focus_fighter_index];
+    } else if (game->room_push_direction < 0) {
+        focus_fighter_index = 1;
+        focus_fighter = &game->combat.fighters[focus_fighter_index];
+        enemy_fighter = &game->combat.fighters[1 - focus_fighter_index];
     }
 
     if (focus_fighter != NULL && focus_fighter->state.alive) {
-        /* Follow the killer, keeping both fighters visible when possible */
+        /* Follow focused fighter (killer or room-push owner). */
         center_x = focus_fighter->state.pos.x + PLAYER_WIDTH * 0.5f;
+
+        if (focus_fighter_index >= 0) {
+            i32 expected_push_dir = (focus_fighter_index == 0) ? 1 : -1;
+            focus_has_room_push_advantage = (game->room_push_direction == expected_push_dir);
+        }
         
-        /* Adjust to keep enemy in view if possible */
-        if (enemy_fighter != NULL && enemy_fighter->state.alive) {
+        /*
+           Keep enemy in view only when no active room-push advantage.
+           During push, camera must stay on the winner to avoid losing focus.
+        */
+        if (!focus_has_room_push_advantage && enemy_fighter != NULL && enemy_fighter->state.alive) {
             f32 enemy_x = enemy_fighter->state.pos.x + PLAYER_WIDTH * 0.5f;
             f32 distance = fabsf(enemy_x - center_x);
             
@@ -358,12 +376,11 @@ void render_draw_fighters(RenderContext* render, Engine* engine, const Game* gam
     }
 }
 
-void render_frame(RenderContext* render, Engine* engine, const Game* game, f32 alpha)
+void render_frame(RenderContext* render, Engine* engine, const Game* game)
 {
     SDL_Renderer* renderer;
     const Room* room;
 
-    (void)alpha;
 
     if (!render || !engine || !game) {
         return;

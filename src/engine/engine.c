@@ -4,12 +4,27 @@
 #include "engine/engine.h"
 #include "engine/engine_internal.h"
 
+static void engine_toggle_fullscreen(Engine* engine)
+{
+    bool is_fullscreen;
+
+    if (!engine || !engine->window) {
+        return;
+    }
+
+    is_fullscreen = (SDL_GetWindowFlags(engine->window) & SDL_WINDOW_FULLSCREEN) != 0;
+    if (!SDL_SetWindowFullscreen(engine->window, !is_fullscreen)) {
+        fprintf(stderr, "SDL_SetWindowFullscreen failed: %s\n", SDL_GetError());
+    }
+}
+
 Engine* engine_create(const EngineConfig* config)
 {
     Engine* engine;
     u32 sdl_init_flags;
+    SDL_WindowFlags window_flags;
 
-    if (!config) {
+    if (!config) { 
         return NULL;
     }
 
@@ -30,11 +45,13 @@ Engine* engine_create(const EngineConfig* config)
         return NULL;
     }
 
+    window_flags = config->fullscreen ? SDL_WINDOW_FULLSCREEN : 0;
+
     engine->window = SDL_CreateWindow(
         config->title,
         config->window_width,
         config->window_height,
-        0
+        window_flags
     );
 
     if (!engine->window) {
@@ -138,6 +155,13 @@ void engine_poll_input(Engine* engine, FrameInput* out_input)
         if (event.type == SDL_EVENT_QUIT) {
             out_input->quit_requested = true;
             engine->running = false;
+            continue;
+        }
+
+        if (event.type == SDL_EVENT_KEY_DOWN &&
+            event.key.scancode == SDL_SCANCODE_F11 &&
+            !event.key.repeat) {
+            engine_toggle_fullscreen(engine);
         }
     }
 

@@ -10,6 +10,7 @@ typedef struct EngineConfig {
 	const char* title;
 	i32 window_width;
 	i32 window_height;
+	bool fullscreen;
 } EngineConfig;
 
 /* Initialisation / destruction */
