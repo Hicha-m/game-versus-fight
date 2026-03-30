@@ -180,36 +180,33 @@ bool arena_init_with_options(Arena* arena, const ArenaOptions* options)
         return false;
     }
 
-    /* Initialize base arena */
     if (!arena_init(arena)) {
         return false;
     }
 
-    /* Choose generation mode */
     switch (options->mode) {
     case ARENA_MODE_DEFAULT:
-        /* Static hardcoded layout */
+
         arena_build_default(arena);
         return true;
 
     case ARENA_MODE_PROCEDURAL:
-        /* Procedural with seed and difficulty */
+
         arena_generate_next(arena, options->seed, options->difficulty);
         return true;
 
     case ARENA_MODE_CORRIDOR:
-        /* Corridor generation */
+
         arena_generate_corridor(arena, options->seed);
         return true;
 
     default:
-        /* Fallback to default */
+
         arena_build_default(arena);
         return true;
     }
 }
 
-/* Helper: Create preset options */
 ArenaOptions arena_options_default(void)
 {
     ArenaOptions opts = {0};

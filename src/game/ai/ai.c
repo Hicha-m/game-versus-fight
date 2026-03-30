@@ -5,6 +5,135 @@
 
 #include "game/ai/ai.h"
 #include "ai_internal.h"
+#include "utils/log.h"
+
+static bool ai_profile_logging_enabled(void)
+{
+    static i32 cached = -1;
+    const char* env;
+
+    if (cached >= 0) {
+        return cached == 1;
+    }
+
+    env = getenv("AI_PROFILE");
+    if (!env) {
+        cached = 1;
+        return true;
+    }
+
+    if (
+        strcmp(env, "0") == 0 ||
+        strcmp(env, "false") == 0 ||
+        strcmp(env, "FALSE") == 0 ||
+        strcmp(env, "off") == 0 ||
+        strcmp(env, "OFF") == 0
+    ) {
+        cached = 0;
+        return false;
+    }
+
+    cached = 1;
+    return true;
+}
+
+static u64 ai_estimate_full_tree_nodes(i32 depth, bool* out_overflow)
+{
+    const u64 max_u64 = ~(u64)0;
+    u64 total = 0;
+    u64 level_nodes = 1;
+    i32 d;
+
+    if (out_overflow) {
+        *out_overflow = false;
+    }
+
+    if (depth < 0) {
+        return 0;
+    }
+
+    for (d = 0; d <= depth; ++d) {
+        if (total > max_u64 - level_nodes) {
+            if (out_overflow) {
+                *out_overflow = true;
+            }
+            return max_u64;
+        }
+        total += level_nodes;
+
+        if (d < depth) {
+            if (level_nodes > max_u64 / 8ULL) {
+                if (out_overflow) {
+                    *out_overflow = true;
+                }
+                return max_u64;
+            }
+            level_nodes *= 8ULL;
+        }
+    }
+
+    return total;
+}
+
+static void ai_log_profile_sample(
+    const AIController* ai,
+    i32 self_index,
+    i32 depth,
+    i32 best_action_index,
+    f32 dt
+)
+{
+    static f32 log_accumulator_s[MAX_PLAYERS] = {0.0f, 0.0f};
+    static u64 sample_counter[MAX_PLAYERS] = {0ULL, 0ULL};
+    bool overflow = false;
+    u64 full_tree_nodes;
+    const u64 max_u64 = ~(u64)0;
+    f64 prune_pct = 0.0;
+    f32 step_s;
+
+    if (!ai || self_index < 0 || self_index >= MAX_PLAYERS) {
+        return;
+    }
+
+    if (!ai_profile_logging_enabled()) {
+        return;
+    }
+
+    step_s = (dt > 0.0f) ? dt : (1.0f / 60.0f);
+    log_accumulator_s[self_index] += step_s;
+
+    if (log_accumulator_s[self_index] < 1.0f) {
+        return;
+    }
+
+    log_accumulator_s[self_index] = 0.0f;
+    sample_counter[self_index]++;
+
+    full_tree_nodes = ai_estimate_full_tree_nodes(depth, &overflow);
+
+    if (full_tree_nodes > 0 && !overflow) {
+        prune_pct = 100.0 * (1.0 - ((f64)ai->metrics.nodes_expanded / (f64)full_tree_nodes));
+        if (prune_pct < 0.0) {
+            prune_pct = 0.0;
+        }
+    }
+
+    log_info(
+        "AI[P%d] sample=%llu depth=%d complexity=O(8^d) full_tree=%s%llu nodes=%llu leaves=%llu cutoffs=%llu prune=%.1f%% think=%.3fms mem=%.1fKB action_idx=%d",
+        self_index + 1,
+        (unsigned long long)sample_counter[self_index],
+        depth,
+        overflow ? ">=" : "",
+        (unsigned long long)(overflow ? max_u64 : full_tree_nodes),
+        (unsigned long long)ai->metrics.nodes_expanded,
+        (unsigned long long)ai->metrics.leaves_evaluated,
+        (unsigned long long)ai->metrics.cutoffs,
+        prune_pct,
+        ai->metrics.think_time_ms,
+        (f32)ai->metrics.estimated_memory_bytes / 1024.0f,
+        best_action_index
+    );
+}
 
 static i32 difficulty_to_depth(AIDifficulty difficulty)
 {
@@ -39,7 +168,6 @@ static f64 now_ms(void)
     return (f64)ts.tv_sec * 1000.0 + (f64)ts.tv_nsec / 1000000.0;
 }
 
-/* Poids heuristiques adaptés au mode de gameplay */
 void ai_weights_for_mode(AIHeuristicWeights* out_weights, AIGameplayMode mode)
 {
     if (!out_weights) {
@@ -48,47 +176,47 @@ void ai_weights_for_mode(AIHeuristicWeights* out_weights, AIGameplayMode mode)
 
     switch (mode) {
         case AI_MODE_DEFENSIVE:
-            /* Priorité: sécurité et éviter les dangers */
-            out_weights->distance_weight = 0.5f;           /* réduit: moins agressif */
-            out_weights->sword_advantage_weight = 5.0f;    /* faible: avoid les combats */
-            out_weights->height_advantage_weight = 0.5f;   /* minime */
-            out_weights->center_control_weight = 0.3f;     /* ignore */
-            out_weights->edge_danger_weight = 10.0f;       /* MAXIMAL: évite les bords */
-            out_weights->attack_opportunity_weight = 2.0f; /* minimal: avoid attacking */
-            out_weights->stun_penalty_weight = 12.0f;      /* TRÈS ÉLEVÉ: avoid stun */
+
+            out_weights->distance_weight = 0.3f;
+            out_weights->sword_advantage_weight = 4.0f;
+            out_weights->height_advantage_weight = 0.3f;
+            out_weights->center_control_weight = 0.2f;
+            out_weights->edge_danger_weight = 3.0f;
+            out_weights->attack_opportunity_weight = 1.5f;
+            out_weights->stun_penalty_weight = 8.0f;
             break;
 
         case AI_MODE_BALANCED:
-            /* Mix équilibré attaque/défense */
-            out_weights->distance_weight = 1.5f;
-            out_weights->sword_advantage_weight = 8.0f;
-            out_weights->height_advantage_weight = 1.0f;
-            out_weights->center_control_weight = 0.8f;
-            out_weights->edge_danger_weight = 5.0f;
-            out_weights->attack_opportunity_weight = 6.0f;
-            out_weights->stun_penalty_weight = 7.0f;
+
+            out_weights->distance_weight = 2.0f;
+            out_weights->sword_advantage_weight = 10.0f;
+            out_weights->height_advantage_weight = 1.2f;
+            out_weights->center_control_weight = 1.2f;
+            out_weights->edge_danger_weight = 1.5f;
+            out_weights->attack_opportunity_weight = 8.0f;
+            out_weights->stun_penalty_weight = 4.0f;
             break;
 
         case AI_MODE_TACTICAL:
-            /* Attaques intelligentes avec stratégie */
-            out_weights->distance_weight = 1.2f;           /* rapproche-toi */
-            out_weights->sword_advantage_weight = 12.0f;   /* ÉLEVÉ: priorize épée */
-            out_weights->height_advantage_weight = 1.5f;   /* un peu plus agressif */
-            out_weights->center_control_weight = 1.5f;     /* contrôle position */
-            out_weights->edge_danger_weight = 3.0f;        /* moins peur des bords */
-            out_weights->attack_opportunity_weight = 10.0f;/* ÉLEVÉ: cherche attaques */
-            out_weights->stun_penalty_weight = 5.0f;       /* moins peur du stun */
+
+            out_weights->distance_weight = 2.5f;
+            out_weights->sword_advantage_weight = 18.0f;
+            out_weights->height_advantage_weight = 2.0f;
+            out_weights->center_control_weight = 2.0f;
+            out_weights->edge_danger_weight = 0.8f;
+            out_weights->attack_opportunity_weight = 14.0f;
+            out_weights->stun_penalty_weight = 2.0f;
             break;
 
         case AI_MODE_AGGRESSIVE:
-            /* Maximise les dégâts et les attaques */
-            out_weights->distance_weight = 0.8f;           /* ignorer distance: fonce */
-            out_weights->sword_advantage_weight = 20.0f;   /* MAXIMAL: valorise épée */
-            out_weights->height_advantage_weight = 2.0f;   /* très agressif en hauteur */
-            out_weights->center_control_weight = 0.5f;     /* ignore */
-            out_weights->edge_danger_weight = 1.0f;        /* ignore les bords */
-            out_weights->attack_opportunity_weight = 15.0f;/* MAXIMAL: toujours attaquer */
-            out_weights->stun_penalty_weight = 2.0f;       /* ignore stun: fonce */
+
+            out_weights->distance_weight = 3.0f;
+            out_weights->sword_advantage_weight = 25.0f;
+            out_weights->height_advantage_weight = 3.0f;
+            out_weights->center_control_weight = 1.0f;
+            out_weights->edge_danger_weight = 0.2f;
+            out_weights->attack_opportunity_weight = 20.0f;
+            out_weights->stun_penalty_weight = 0.5f;
             break;
 
         default:
@@ -103,7 +231,6 @@ void ai_default_weights(AIHeuristicWeights* out_weights)
         return;
     }
 
-    /* Poids par défaut (mode BALANCED) */
     ai_weights_for_mode(out_weights, AI_MODE_BALANCED);
 }
 
@@ -114,7 +241,7 @@ void ai_set_difficulty(AIController* ai, AIDifficulty difficulty)
     }
     ai->difficulty = difficulty;
     ai->search_depth = difficulty_to_depth(difficulty);
-    /* Mapper difficulté -> mode de gameplay */
+
     ai_set_gameplay_mode(ai, difficulty_to_gameplay_mode(difficulty));
 }
 
@@ -132,7 +259,7 @@ void ai_set_gameplay_mode(AIController* ai, AIGameplayMode mode)
         return;
     }
     ai->gameplay_mode = mode;
-    /* Mettre à jour les poids heuristiques pour ce mode */
+
     ai_weights_for_mode(&ai->weights, mode);
 }
 
@@ -236,7 +363,7 @@ f32 ai_evaluate_state(
     i32 dy;
     f32 room_progress;
     f32 room_pos_progress;
-    f32 enemy_distance_penalty;
+    f32 enemy_distance_bonus;
     bool enemy_between_and_close;
     bool in_attack_range;
     f32 score = 0.0f;
@@ -248,17 +375,16 @@ f32 ai_evaluate_state(
     dx = state->enemy_x_bucket - state->self_x_bucket;
     dy = state->enemy_y_bucket - state->self_y_bucket;
     room_progress = (f32)(state->current_room - (state->room_count / 2)) * (f32)state->objective_direction;
-    
-    /* Calculer la progression spatiale correctement pour les deux directions */
+
     if (state->objective_direction > 0) {
-        /* Joueur 0: avancer vers la droite (x augmente) */
+
         room_pos_progress = (f32)state->self_x_bucket / (f32)state->room_max_x_bucket;
     } else {
-        /* Joueur 1: avancer vers la gauche (x diminue) */
+
         room_pos_progress = (f32)(state->room_max_x_bucket - state->self_x_bucket) / (f32)state->room_max_x_bucket;
     }
-    
-    enemy_distance_penalty = fabsf((f32)dx) * weights->distance_weight * 0.08f;
+
+    enemy_distance_bonus = (3.0f - fabsf((f32)dx)) * weights->distance_weight * 0.2f;
 
     enemy_between_and_close = false;
     if (state->objective_direction > 0) {
@@ -269,61 +395,58 @@ f32 ai_evaluate_state(
 
     in_attack_range = (fabsf((f32)dx) <= 2.5f) && (fabsf((f32)dy) <= 1.5f);
 
-    /* Progression objectif - BONUS AUGMENTÉ pour encourager le mouvement */
-    score += room_progress * 12.0f;        /* +50% bonus pour progression entre les salles */
-    score += room_pos_progress * 15.0f;    /* +200% bonus pour progression au sein de la salle */
-    score -= enemy_distance_penalty;
+    score += room_progress * 12.0f;
+    score += room_pos_progress * 15.0f;
+    score += enemy_distance_bonus;
 
-    /* Avantages d'armes */
     score += (state->self_has_sword ? 1.0f : -1.0f) * weights->sword_advantage_weight;
 
-    /* Avantage de hauteur */
     score += (dy > 0 ? 1.0f : -1.0f) * weights->height_advantage_weight * 0.5f;
 
-    /* Gestion des bords */
     if (state->self_near_edge && !enemy_between_and_close) {
+
         score -= weights->edge_danger_weight;
     }
     if (state->enemy_near_edge) {
-        score += weights->edge_danger_weight;
-        /* BONUS AGRESSIF: ennemi au bord = position favorable pour le tuer */
+        score += weights->edge_danger_weight * 1.5f;
+
         if (in_attack_range && state->self_has_sword && state->self_can_thrust) {
-            score += weights->attack_opportunity_weight * 2.5f;
+            score += weights->attack_opportunity_weight * 3.0f;
         }
     }
 
-    /* Opportunités d'attaque */
-    if (state->self_can_thrust && fabsf((f32)dx) <= 2.0f) {
-        score += weights->attack_opportunity_weight * (enemy_between_and_close ? 1.3f : 0.8f);
-        /* SUPER BONUS: si on peut faire un coup et on a l'épée */
+    if (state->self_can_thrust && fabsf((f32)dx) <= 2.5f) {
+        score += weights->attack_opportunity_weight * (enemy_between_and_close ? 1.5f : 1.0f);
+
         if (state->self_has_sword && in_attack_range) {
-            score += weights->attack_opportunity_weight * 1.5f;
+            score += weights->attack_opportunity_weight * 2.0f;
         }
     }
-    if (state->enemy_can_thrust && fabsf((f32)dx) <= 2.0f) {
-        score -= weights->attack_opportunity_weight;
+    if (state->enemy_can_thrust && fabsf((f32)dx) <= 2.5f) {
+        score -= weights->attack_opportunity_weight * 0.8f;
     }
 
-    /* Gestion du sol */
     if (!state->self_grounded) {
-        score -= 0.2f;
+        score -= 0.1f;
     }
     if (!state->enemy_grounded) {
-        score += 0.2f;
-        /* Bonus agressif: ennemi en l'air et on peut attaquer = facile à hit */
+        score += 0.3f;
+
         if (in_attack_range && state->self_can_thrust) {
-            score += weights->attack_opportunity_weight * 0.5f;
+            score += weights->attack_opportunity_weight * 0.8f;
         }
     }
 
-    /* Bonus pour les combats favorables */
     if (state->self_has_sword && !state->enemy_has_sword && in_attack_range) {
-        score += weights->sword_advantage_weight * 0.3f;
+        score += weights->sword_advantage_weight * 0.5f;
     }
-    
-    /* BONUS SUPPLÉMENTAIRE: Récompenser la progression constante et le positionnement proactif */
-    /* Cela encourage l'IA à ne jamais rester immobile et toujours chercher une meilleure position */
-    score += 0.5f;  /* Bonus de base pour chaque action */
+
+    score += 1.0f;
+
+    f32 proximity_bonus = (2.5f - fabsf((f32)dx)) * 2.0f;
+    if (proximity_bonus > 0.0f) {
+        score += proximity_bonus;
+    }
 
     return score;
 }
@@ -508,29 +631,28 @@ static f32 alphabeta(
     }
 }
 
-/* Retourne l'ordre d'actions prioritaires selon le mode de gameplay */
 static void ai_get_action_priority_order(AIAction* out_actions, AIGameplayMode mode)
 {
     static const AIAction aggressive_order[] = {
-        AI_ACTION_THRUST,           /* Priorité 1: attaquer */
-        AI_ACTION_LINE_HIGH,        /* Priorité 2: diversifier attaque */
-        AI_ACTION_LINE_LOW,         /* Priorité 3: diversifier attaque */
-        AI_ACTION_ADVANCE,          /* Priorité 4: avancer vers ennemi */
-        AI_ACTION_JUMP,             /* Priorité 5: mobilité */
-        AI_ACTION_LINE_MID,         /* Priorité 6: attaque standard */
-        AI_ACTION_THROW,            /* Priorité 7: lancer arme */
-        AI_ACTION_RETREAT           /* Priorité 8: jamais reculer */
+        AI_ACTION_ADVANCE,
+        AI_ACTION_THRUST,
+        AI_ACTION_LINE_HIGH,
+        AI_ACTION_LINE_LOW,
+        AI_ACTION_JUMP,
+        AI_ACTION_LINE_MID,
+        AI_ACTION_THROW,
+        AI_ACTION_RETREAT
     };
 
     static const AIAction tactical_order[] = {
-        AI_ACTION_ADVANCE,          /* Priorité 1: positionner */
-        AI_ACTION_THRUST,           /* Priorité 2: attaquer si close */
-        AI_ACTION_JUMP,             /* Priorité 3: mobilité tactique */
-        AI_ACTION_LINE_HIGH,        /* Priorité 4: coups variés */
-        AI_ACTION_LINE_LOW,         /* Priorité 5: coups variés */
-        AI_ACTION_LINE_MID,         /* Priorité 6: attaque standard */
-        AI_ACTION_RETREAT,          /* Priorité 7: reculer si nécessaire */
-        AI_ACTION_THROW             /* Priorité 8: jeter arme dernier recours */
+        AI_ACTION_ADVANCE,
+        AI_ACTION_THRUST,
+        AI_ACTION_JUMP,
+        AI_ACTION_LINE_HIGH,
+        AI_ACTION_LINE_MID,
+        AI_ACTION_LINE_LOW,
+        AI_ACTION_RETREAT,
+        AI_ACTION_THROW
     };
 
     static const AIAction balanced_order[] = {
@@ -545,14 +667,14 @@ static void ai_get_action_priority_order(AIAction* out_actions, AIGameplayMode m
     };
 
     static const AIAction defensive_order[] = {
-        AI_ACTION_RETREAT,          /* Priorité 1: reculer pour sécurité */
-        AI_ACTION_JUMP,             /* Priorité 2: éviter danger */
-        AI_ACTION_ADVANCE,          /* Priorité 3: avancer lentement */
-        AI_ACTION_LINE_MID,         /* Priorité 4: attaque passive */
-        AI_ACTION_LINE_HIGH,        /* Priorité 5: coups défensifs */
-        AI_ACTION_LINE_LOW,         /* Priorité 6: coups défensifs */
-        AI_ACTION_THRUST,           /* Priorité 7: attaquer dernier recours */
-        AI_ACTION_THROW             /* Priorité 8: jamais jeter arme */
+        AI_ACTION_RETREAT,
+        AI_ACTION_JUMP,
+        AI_ACTION_ADVANCE,
+        AI_ACTION_LINE_MID,
+        AI_ACTION_LINE_HIGH,
+        AI_ACTION_LINE_LOW,
+        AI_ACTION_THRUST,
+        AI_ACTION_THROW
     };
 
     if (!out_actions) {
@@ -593,25 +715,14 @@ PlayerCommand ai_think(
     i32 i;
     f64 start_ms;
     f64 end_ms;
-    i32 self_kills = 0;
-    bool has_kill_advantage = false;
 
-    (void)dt;
+    (void)player_kills;
 
     if (!arena || !combat || self_index < 0 || self_index >= MAX_PLAYERS) {
         PlayerCommand none;
         memset(&none, 0, sizeof(none));
         none.target_sword_line = SWORD_LINE_MID;
         return none;
-    }
-
-    /* Récupérer le nombre de kills de l'IA et comparer avec l'adversaire */
-    if (player_kills) {
-        i32 enemy_index = (self_index == 0) ? 1 : 0;
-        self_kills = player_kills[self_index];
-        i32 enemy_kills = player_kills[enemy_index];
-        /* L'IA peut progresser seulement si elle a au moins autant de kills que l'ennemi */
-        has_kill_advantage = (self_kills >= enemy_kills && self_kills > 0);
     }
 
     if (ai) {
@@ -631,7 +742,6 @@ PlayerCommand ai_think(
 
     start_ms = now_ms();
 
-    /* Utiliser l'ordre d'actions prioritaires selon le mode de gameplay */
     AIGameplayMode mode = ai ? ai->gameplay_mode : AI_MODE_BALANCED;
     AIAction prioritized_actions[8];
     ai_get_action_priority_order(prioritized_actions, mode);
@@ -665,6 +775,7 @@ PlayerCommand ai_think(
             ai->metrics.think_time_ms = 0.0;
         }
         ai->metrics.estimated_memory_bytes = ai->metrics.nodes_expanded * (u64)sizeof(AIDecisionState);
+        ai_log_profile_sample(ai, self_index, depth, best_action_index, dt);
     }
 
     best_cmd = ai_action_to_command(prioritized_actions[best_action_index]);
@@ -680,28 +791,26 @@ PlayerCommand ai_think(
             (self->state.facing_right && dx >= 0.0f) ||
             (!self->state.facing_right && dx <= 0.0f);
 
-        /* Logique combative aggravée selon le mode de gameplay */
         bool should_attack = false;
-        
-        if (self->state.alive && enemy->state.alive && self->state.has_sword && 
+
+        if (self->state.alive && enemy->state.alive && self->state.has_sword &&
             self->state.attack_cooldown <= 0.0f && enemy_is_in_front) {
-            
-            /* Déterminer si on doit attaquer selon le mode */
+
             switch (mode) {
                 case AI_MODE_AGGRESSIVE:
-                    /* TOUJOURS attaquer si possible - maximiser les dégâts */
-                    should_attack = (fabsf(dx) <= attack_range_x * 1.2f && dy <= attack_range_y * 1.2f);
+
+                    should_attack = (fabsf(dx) <= attack_range_x * 1.5f && dy <= attack_range_y * 1.5f);
                     break;
                 case AI_MODE_TACTICAL:
-                    /* Attaquer si on est dans une bonne position */
-                    should_attack = (fabsf(dx) <= attack_range_x && dy <= attack_range_y);
+
+                    should_attack = (fabsf(dx) <= attack_range_x * 1.2f && dy <= attack_range_y * 1.2f);
                     break;
                 case AI_MODE_BALANCED:
-                    /* Attaquer si l'ennemi est très proche */
+
                     should_attack = (fabsf(dx) <= attack_range_x && dy <= attack_range_y);
                     break;
                 case AI_MODE_DEFENSIVE:
-                    /* Attaquer seulement si absolument nécessaire */
+
                     should_attack = (fabsf(dx) <= attack_range_x * 0.8f && dy <= attack_range_y * 0.8f);
                     break;
             }
@@ -711,25 +820,23 @@ PlayerCommand ai_think(
                 best_cmd.left_pressed = 0;
                 best_cmd.thrust_pressed = true;
 
-                /* Calcul du placement de l'épée selon la position de l'ennemi */
                 f32 self_y = self->state.pos.y;
                 f32 enemy_y = enemy->state.pos.y;
                 f32 height_diff = enemy_y - self_y;
 
                 if (height_diff < -15.0f) {
-                    /* Ennemi bien plus haut: attaque haute */
+
                     best_cmd.target_sword_line = SWORD_LINE_HIGH;
                 } else if (height_diff > 15.0f) {
-                    /* Ennemi bien plus bas: attaque basse */
+
                     best_cmd.target_sword_line = SWORD_LINE_LOW;
                 } else {
-                    /* Ennemi au même niveau: attaque au milieu */
+
                     best_cmd.target_sword_line = SWORD_LINE_MID;
                 }
-                
-                /* Mode agressif: varier les attaques pour combos */
-                if (mode == AI_MODE_AGGRESSIVE && fabsf(dx) < 1.5f) {
-                    /* Très proche: alterner high/mid/low pour maximum de dégâts */
+
+                if (mode == AI_MODE_AGGRESSIVE && fabsf(dx) < 2.0f) {
+
                     static i32 combo_counter = 0;
                     combo_counter++;
                     switch (combo_counter % 3) {
@@ -737,36 +844,38 @@ PlayerCommand ai_think(
                         case 1: best_cmd.target_sword_line = SWORD_LINE_MID; break;
                         case 2: best_cmd.target_sword_line = SWORD_LINE_LOW; break;
                     }
+                } else if (mode == AI_MODE_TACTICAL && fabsf(dx) < 1.5f) {
+
+                    static i32 tactical_combo = 0;
+                    tactical_combo++;
+                    if (tactical_combo % 2 == 0) {
+                        best_cmd.target_sword_line = (height_diff < 0) ? SWORD_LINE_HIGH : SWORD_LINE_LOW;
+                    }
                 }
             }
         }
     }
 
-    /* Mouvement intelligent basé sur le mode de gameplay */
     if (best_cmd.right_pressed == 0 && best_cmd.left_pressed == 0) {
         i32 advance_bias = 0;
-        
-        /* Si l'IA n'a pas l'avantage des kills: FORCER L'ATTAQUE (avancer vers l'ennemi) */
-        if (!has_kill_advantage) {
-            /* Pas de kill ou kills insuffisants: DOIT pousser vers l'avant pour combattre */
-            advance_bias = 3;  /* Maximum: avancer agressivement pour chercher le combat */
-        } else {
-            /* L'IA a tué: peut maintenant progresser selon son mode de gameplay */
-            /* Biais d'avancée selon le mode - maintenant autorisé */
-            switch (mode) {
-                case AI_MODE_AGGRESSIVE:
-                    advance_bias = 3;  /* Maximum: toujours avancer agressivement */
-                    break;
-                case AI_MODE_TACTICAL:
-                    advance_bias = 2;  /* Normal: avancée constante */
-                    break;
-                case AI_MODE_BALANCED:
-                    advance_bias = 2;  /* Augmented: toujours avancer en équilibre */
-                    break;
-                case AI_MODE_DEFENSIVE:
-                    advance_bias = 1;  /* Même en défense: progresser lentement */
-                    break;
-            }
+
+        switch (mode) {
+            case AI_MODE_AGGRESSIVE:
+
+                advance_bias = 3;
+                break;
+            case AI_MODE_TACTICAL:
+
+                advance_bias = 2;
+                break;
+            case AI_MODE_BALANCED:
+
+                advance_bias = 2;
+                break;
+            case AI_MODE_DEFENSIVE:
+
+                advance_bias = 1;
+                break;
         }
 
         if (self_index == 0) {

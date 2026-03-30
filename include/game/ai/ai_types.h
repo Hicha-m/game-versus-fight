@@ -17,10 +17,10 @@ typedef enum AIAlgorithm {
 } AIAlgorithm;
 
 typedef enum AIGameplayMode {
-    AI_MODE_DEFENSIVE = 0,   /* EASY: évite le combat, sécurité d'abord */
-    AI_MODE_BALANCED,        /* MEDIUM: mix équilibré attaque/défense */
-    AI_MODE_TACTICAL,        /* HARD: attaque intelligente + strategy */
-    AI_MODE_AGGRESSIVE       /* EXPERT: maximize les dégâts, tue l'ennemi */
+    AI_MODE_DEFENSIVE = 0,
+    AI_MODE_BALANCED,
+    AI_MODE_TACTICAL,
+    AI_MODE_AGGRESSIVE
 } AIGameplayMode;
 
 #endif

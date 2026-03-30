@@ -25,13 +25,11 @@ add_library(game_core STATIC
     src/game/ai/ai.c
     src/game/game.c
     src/game/config.c
-
-    src/ui/menu.c
+    src/game/menu.c
 
     src/render/render.c
     src/render/render_menu.c
     src/render/render_victory.c
-    src/render/animation.c
     src/render/assets.c
 
     src/utils/log.c

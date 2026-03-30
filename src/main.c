@@ -3,6 +3,7 @@
 #include "core/constants.h"
 #include "core/types.h"
 #include "engine/engine.h"
+#include "game/config.h"
 #include "game/game.h"
 #include "render/render.h"
 #include "utils/log.h"
@@ -16,6 +17,7 @@ int main(void)
     FrameInput input = {0};
 
     EngineConfig config;
+    GameConfig game_config;
     f64 accumulator = 0.0;
     u64 last_counter;
 
@@ -24,6 +26,13 @@ int main(void)
     config.title = WINDOW_TITLE;
     config.window_width = WINDOW_WIDTH;
     config.window_height = WINDOW_HEIGHT;
+    config.fullscreen = false;
+
+    config_set_defaults(&game_config);
+    if (!config_load(&game_config)) {
+        log_warn("config_load failed, using default display settings");
+    }
+    config.fullscreen = game_config.fullscreen;
 
     engine = engine_create(&config);
     if (!engine) {
@@ -71,7 +80,7 @@ int main(void)
             input_clear_edges(&input);
         }
 
-        render_frame(&render, engine, &game, (f32)(accumulator / FIXED_DT));
+        render_frame(&render, engine, &game);
     }
 
     game_shutdown(&game);

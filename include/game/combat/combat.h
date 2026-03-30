@@ -1,7 +1,6 @@
 #ifndef COMBAT_H
 #define COMBAT_H
 
-
 #include "core/types.h"
 #include "core/constants.h"
 #include "game/arena/arena.h"
@@ -31,7 +30,6 @@ typedef enum ControllerType {
     CONTROLLER_AI
 } ControllerType;
 
-/* Intention gameplay d'un joueur pour le tick courant */
 typedef struct PlayerCommand {
     bool right_pressed;
     bool left_pressed;
@@ -51,33 +49,28 @@ typedef struct FighterStats {
     f32 max_fall_speed;
 } FighterStats;
 
-
 typedef struct FighterController {
     ControllerType type;
 } FighterController;
 
 typedef struct FighterState {
-    /* --- Physique --- */
+
     Vec2 pos;
     Vec2 vel;
     bool grounded;
     bool facing_right;
 
-    /* --- Épée / posture --- */
     bool has_sword;
     SwordLine sword_line;
 
-    /* --- Action / animation --- */
     FighterAction action;
     f32 action_time;
     f32 action_duration;
 
-    /* --- Combat --- */
     bool is_attacking;
     bool is_parrying;
     bool is_stunned;
 
-    /* --- Timers --- */
     f32 stun_timer;
     f32 invincibility_timer;
     f32 attack_cooldown;
@@ -85,7 +78,6 @@ typedef struct FighterState {
     f32 move_hold_time;
     f32 thrust_buffer_timer;
 
-    /* --- Gameplay --- */
     bool alive;
 } FighterState;
 
@@ -114,20 +106,17 @@ typedef struct CombatState {
     i32 kill_attacker_index;
     i32 kill_victim_index;
     bool kill_counts_for_progress;
-    f32 kill_attacker_timer;   /* Time since kill, for camera priority window */
+    f32 kill_attacker_timer;
 
     bool round_over;
     i32 winner_index;
 } CombatState;
 
-/* Lifecycle */
 bool combat_init(CombatState* combat);
 void combat_shutdown(CombatState* combat);
 
-/* Round */
 void combat_reset_round(CombatState* combat, const Arena* arena);
 
-/* Tick gameplay */
 void combat_step(
     CombatState* combat,
     Arena* arena,

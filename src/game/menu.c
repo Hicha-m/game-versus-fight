@@ -5,7 +5,6 @@
 #include "ui/menu.h"
 #include "utils/log.h"
 
-/* État global de l'action */
 static MenuAction current_action = MENU_ACTION_NONE;
 static bool menu_rng_seeded = false;
 
@@ -31,10 +30,6 @@ static u32 menu_random_seed(void)
     return (u32)r;
 }
 
-/* ========================================
-   Lifecycle
-   ======================================== */
-
 bool menu_init(MenuContext* menu)
 {
     if (!menu) {
@@ -50,13 +45,11 @@ bool menu_init(MenuContext* menu)
     menu->is_solo = true;
     menu->selected_difficulty = AI_DIFFICULTY_MEDIUM;
 
-    /* Charger la configuration */
     if (!config_load(&menu->config)) {
         log_warn("Failed to load config, using defaults");
         config_set_defaults(&menu->config);
     }
 
-    /* NEW: Initialize arena options */
     menu->arena_options = arena_options_default();
     menu->arena_options.seed = menu_random_seed();
     menu->seed_input_buffer = 0;
@@ -71,7 +64,6 @@ void menu_shutdown(MenuContext* menu)
         return;
     }
 
-    /* Sauvegarder la configuration */
     if (!config_save(&menu->config)) {
         log_warn("Failed to save config");
     }
@@ -139,7 +131,6 @@ AIDifficulty menu_get_selected_difficulty(const MenuContext* menu)
     return menu->selected_difficulty;
 }
 
-/* NEW: Get arena options accessor */
 const ArenaOptions* menu_get_arena_options(const MenuContext* menu)
 {
     if (!menu) {
@@ -148,13 +139,9 @@ const ArenaOptions* menu_get_arena_options(const MenuContext* menu)
     return &menu->arena_options;
 }
 
-/* ========================================
-   Update - Pure Logic (No SDL)
-   ======================================== */
-
 static void menu_update_main(MenuContext* menu, const FrameInput* input)
 {
-    i32 option_count = 3;  /* Play, Options, Quit */
+    i32 option_count = 3;
 
     if (input->players[0].actions[ACTION_DOWN].pressed) {
         menu->selected_option = (menu->selected_option + 1) % option_count;
@@ -182,7 +169,7 @@ static void menu_update_main(MenuContext* menu, const FrameInput* input)
 
 static void menu_update_play_mode(MenuContext* menu, const FrameInput* input)
 {
-    i32 option_count = 2;  /* Solo, Multiplayer */
+    i32 option_count = 2;
 
     if (input->players[0].actions[ACTION_DOWN].pressed) {
         menu->selected_option = (menu->selected_option + 1) % option_count;
@@ -213,7 +200,7 @@ static void menu_update_play_mode(MenuContext* menu, const FrameInput* input)
 
 static void menu_update_difficulty(MenuContext* menu, const FrameInput* input)
 {
-    i32 option_count = 4;  /* Easy, Medium, Hard, Expert */
+    i32 option_count = 4;
 
     if (input->players[0].actions[ACTION_DOWN].pressed) {
         menu->selected_option = (menu->selected_option + 1) % option_count;
@@ -235,7 +222,7 @@ static void menu_update_difficulty(MenuContext* menu, const FrameInput* input)
 
 static void menu_update_options(MenuContext* menu, const FrameInput* input)
 {
-    i32 option_count = 2;  /* Audio, Keybinds */
+    i32 option_count = 2;
 
     if (input->players[0].actions[ACTION_DOWN].pressed) {
         menu->selected_option = (menu->selected_option + 1) % option_count;
@@ -264,7 +251,7 @@ static void menu_update_options(MenuContext* menu, const FrameInput* input)
 
 static void menu_update_options_audio(MenuContext* menu, const FrameInput* input)
 {
-    i32 option_count = 3;  /* Master, Music, SFX */
+    i32 option_count = 3;
 
     if (input->players[0].actions[ACTION_DOWN].pressed) {
         menu->selected_option = (menu->selected_option + 1) % option_count;
@@ -273,7 +260,6 @@ static void menu_update_options_audio(MenuContext* menu, const FrameInput* input
         menu->selected_option = (menu->selected_option - 1 + option_count) % option_count;
     }
 
-    /* Adjust selected volume */
     if (input->players[0].actions[ACTION_RIGHT].down) {
         switch (menu->selected_option) {
             case 0:
@@ -347,7 +333,7 @@ static void menu_update_options_keybinds(MenuContext* menu, const FrameInput* in
 
 static void menu_update_pause(MenuContext* menu, const FrameInput* input)
 {
-    i32 option_count = 2;  /* Resume, Back to Menu */
+    i32 option_count = 2;
 
     if (input->players[0].actions[ACTION_DOWN].pressed) {
         menu->selected_option = (menu->selected_option + 1) % option_count;
@@ -369,16 +355,14 @@ static void menu_update_pause(MenuContext* menu, const FrameInput* input)
         }
     }
 
-    /* ESC aussi pour résumer */
     if (input->pause.pressed) {
         current_action = MENU_ACTION_RESUME;
     }
 }
 
-/* NEW: Arena mode selection (Default, Procedural, Corridor) */
 static void menu_update_arena_mode(MenuContext* menu, const FrameInput* input)
 {
-    i32 option_count = 3;  /* Default, Procedural, Corridor */
+    i32 option_count = 3;
 
     if (input->players[0].actions[ACTION_DOWN].pressed) {
         menu->selected_option = (menu->selected_option + 1) % option_count;
@@ -387,7 +371,6 @@ static void menu_update_arena_mode(MenuContext* menu, const FrameInput* input)
         menu->selected_option = (menu->selected_option - 1 + option_count) % option_count;
     }
 
-    /* Update mode based on selection */
     menu->arena_options.mode = (ArenaGenerationMode)menu->selected_option;
 
     if (input->players[0].actions[ACTION_JUMP].pressed || input->players[0].actions[ACTION_THRUST].pressed) {
@@ -396,7 +379,7 @@ static void menu_update_arena_mode(MenuContext* menu, const FrameInput* input)
         } else if (menu->arena_options.mode == ARENA_MODE_CORRIDOR) {
             menu_set_state(menu, MENU_STATE_ARENA_SEED);
         } else {
-            /* DEFAULT mode - go straight to play */
+
             current_action = MENU_ACTION_START_MATCH;
         }
     }
@@ -406,7 +389,6 @@ static void menu_update_arena_mode(MenuContext* menu, const FrameInput* input)
     }
 }
 
-/* NEW: Arena difficulty selection (0-10) */
 static void menu_update_arena_difficulty(MenuContext* menu, const FrameInput* input)
 {
     if (input->players[0].actions[ACTION_LEFT].pressed) {
@@ -431,10 +413,9 @@ static void menu_update_arena_difficulty(MenuContext* menu, const FrameInput* in
     }
 }
 
-/* NEW: Arena seed selection */
 static void menu_update_arena_seed(MenuContext* menu, const FrameInput* input)
 {
-    /* Reroll on directional input if user wants a different random seed. */
+
     if (input->players[0].actions[ACTION_LEFT].pressed ||
         input->players[0].actions[ACTION_RIGHT].pressed ||
         input->players[0].actions[ACTION_UP].pressed ||
@@ -443,7 +424,7 @@ static void menu_update_arena_seed(MenuContext* menu, const FrameInput* input)
     }
 
     if (input->players[0].actions[ACTION_JUMP].pressed || input->players[0].actions[ACTION_THRUST].pressed) {
-        /* Start the match */
+
         current_action = MENU_ACTION_START_MATCH;
     }
 
@@ -482,7 +463,7 @@ void menu_update(MenuContext* menu, const FrameInput* input, f32 dt)
         case MENU_STATE_PAUSE:
             menu_update_pause(menu, input);
             break;
-        /* NEW: Arena configuration states */
+
         case MENU_STATE_ARENA_MODE:
             menu_update_arena_mode(menu, input);
             break;

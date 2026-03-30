@@ -1,10 +1,6 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
-/* =========================
-   Fenêtre / rendu
-   ========================= */
-
 #define WINDOW_WIDTH            1280
 #define WINDOW_HEIGHT           720
 #define WINDOW_TITLE            "Blade Rush"
@@ -15,19 +11,11 @@
 #define MAX_PLAYERS      2
 #define ROOM_COUNT       5
 
-/* =========================
-   Monde / arène
-   ========================= */
-
 #define ROOM_MAX_WIDTH_TILES    96
 #define ROOM_HEIGHT_TILES       22
 #define TILE_SIZE               32
 
 #define ROOM_DEFAULT_WIDTH_TILES 40
-
-/* =========================
-   Joueurs / combat
-   ========================= */
 
 #define PLAYER_WIDTH           24.0f
 #define PLAYER_HEIGHT          48.0f
@@ -37,7 +25,6 @@
 #define PLAYER_GRAVITY        1700.0f
 #define PLAYER_MAX_FALL_SPEED 1200.0f
 
-/* Gameplay hit reach (collision/query), not the rendered sword pixel length. */
 #define SWORD_BODY_REACH_X      24.0f
 #define SWORD_THRUST_RANGE_X    40.0f
 #define SWORD_HIT_RANGE_Y       22.0f
@@ -87,13 +74,10 @@
 #define SWORD_RENDER_THRUST_HEIGHT      6.0f
 #define THRUST_RENDER_EXTEND_FRACTION   0.30f
 
-/* IA / minimax */
 #define AI_MAX_DEPTH            8
 #define AI_MAX_ACTIONS          8
 
-/* Camera follow rules - killer priority & distance limit */
-#define CAMERA_KILL_PRIORITY_WINDOW     2.0f    /* Time (sec) to prioritize killer after kill */
-#define CAMERA_MAX_DISTANCE             (WINDOW_WIDTH * 1.2f)  /* Max distance from camera before enemy dies */
-
+#define CAMERA_KILL_PRIORITY_WINDOW     2.0f
+#define CAMERA_MAX_DISTANCE             (WINDOW_WIDTH * 1.2f)
 
 #endif

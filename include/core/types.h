@@ -4,10 +4,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/* =========================
-   Types de base
-   ========================= */
-
 typedef int8_t   i8;
 typedef int16_t  i16;
 typedef int32_t  i32;
@@ -20,10 +16,6 @@ typedef uint64_t u64;
 
 typedef float    f32;
 typedef double   f64;
-
-/* =========================
-   Math minimal 2D
-   ========================= */
 
 typedef struct Vec2 {
     f32 x;
@@ -41,10 +33,6 @@ typedef struct RectF {
     f32 w;
     f32 h;
 } RectF;
-
-/* =========================
-   Enums gameplay globaux
-   ========================= */
 
 typedef enum GameError {
     GAME_OK = 0,

@@ -1,5 +1,4 @@
 #include "render/assets.h"
-#include "render/animation.h"
 #include "engine/sdl3_image_compat.h"
 
 #include <stdio.h>
@@ -10,22 +9,21 @@
 static SDL_Renderer *s_renderer = NULL;
 static SDL_Texture *s_textures[ASSET_TEX_COUNT] = {0};
 
-/* Texture paths (PNG for SDL3_image, BMP fallback) */
 #if GAME_HAS_SDL3_IMAGE
 static const char *texture_rel_paths[ASSET_TEX_COUNT] = {
     "assets/texture/Backgrounds/bForest_0.png",
+    "assets/sprites/sManNoWeaponStand/sManNoWeaponStand_0.png",
+    "assets/sprites/sManSwordStandMed/sManSwordStandMed_0.png",
     "assets/sprites/sFlyingSword/sFlyingSword_0.png",
 };
 #else
 static const char *texture_rel_paths[ASSET_TEX_COUNT] = {
     "assets/texture/Backgrounds/bForest_0.bmp",
+    "assets/sprites/sManNoWeaponStand/sManNoWeaponStand_0.bmp",
+    "assets/sprites/sManSwordStandMed/sManSwordStandMed_0.bmp",
     "assets/sprites/sFlyingSword/sFlyingSword_0.bmp",
 };
 #endif
-
-/* ================================================================ */
-/*  File helpers                                                    */
-/* ================================================================ */
 
 static bool file_exists(const char *path)
 {
@@ -66,10 +64,6 @@ static SDL_Texture *load_texture_from_path(const char *path)
 #endif
 }
 
-/* ================================================================ */
-/*  Public API                                                      */
-/* ================================================================ */
-
 GameError assets_init(SDL_Renderer *renderer)
 {
     if (renderer == NULL) return GAME_ERROR_INVALID_ARGUMENT;
@@ -79,7 +73,6 @@ GameError assets_init(SDL_Renderer *renderer)
         s_textures[i] = NULL;
     }
 
-    /* Load all textures */
     for (int i = 0; i < ASSET_TEX_COUNT; ++i) {
         char path[PATH_BUFFER_SIZE] = {0};
 
@@ -94,19 +87,12 @@ GameError assets_init(SDL_Renderer *renderer)
         }
     }
 
-    /* Initialize animation system */
-    if (animation_init(renderer) != GAME_OK) {
-        SDL_Log("assets_init: animation_init failed");
-        return GAME_ERROR_INITIALIZATION;
-    }
-
-    SDL_Log("assets_init: textures and animations loaded");
+    SDL_Log("assets_init: textures loaded");
     return GAME_OK;
 }
 
 void assets_shutdown(void)
 {
-    animation_shutdown();
     for (int i = 0; i < ASSET_TEX_COUNT; ++i) {
         if (s_textures[i] != NULL) {
             SDL_DestroyTexture(s_textures[i]);
