@@ -22,13 +22,6 @@ Fight against a AI.
 - Rendering + input library
 - Install: https://github.com/libsdl-org/SDL/releases
 
-## Git Branching Workflow
-
-- Main integration branch: `dev`
-- Story development branch pattern: `feature/<lane>`
-- Example gameplay story branch: `feature/gameplay`
-- Flow: create branch from `dev` → implement story → push branch → open PR to `dev` → review + checks pass → merge into `dev`
-- `main` is reserved for stabilized releases only
 
 ## Quick Start
 
