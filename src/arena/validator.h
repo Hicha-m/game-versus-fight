@@ -1,4 +1,0 @@
-#ifndef ARENA_VALIDATOR_H
-#define ARENA_VALIDATOR_H
-
-#endif
