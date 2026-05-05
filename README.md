@@ -1,6 +1,8 @@
 # game-versus-fight
 Fight against a AI.
 
+![Aperçu du jeu](https://raw.githubusercontent.com/Hicha-m/game-versus-fight/main/docs/jeux.png)
+
 ## Requirements
 
 ### Mandatory
