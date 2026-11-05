@@ -31,8 +31,17 @@ cmake --build --preset run
 
 Sur clavier AZERTY, les codes physiques correspondent à Q/D et Z/S pour J1.
 La configuration `game_config.json` est relative au répertoire d'exécution.
-Les raccourcis sauvegardés sont chargés au démarrage. Le menu de raccourcis
-reste une consultation ; modifier le fichier pour changer les affectations.
+Dans Options → Keybinds : gauche/droite choisit le joueur, haut/bas l'action,
+Sélection lance la capture de la prochaine touche, Échap annule. Une affectation
+déjà utilisée par ce joueur est échangée avec l'ancienne. Échap et F11 sont réservés.
+Les modifications sont sauvegardées et appliquées immédiatement. Options permet
+aussi de basculer le plein écran ; F11 reste disponible. F3 affiche les corps de collision.
+
+Musique et effets sont synthétisés localement. Les trois réglages de volume sont
+appliqués au flux audio ; un ordinateur sans périphérique audio peut jouer en silence.
+Au choix de la graine : chiffres pour éditer, Retour arrière pour effacer,
+flèches pour tirer une nouvelle graine. La graine choisie est conservée au lancement
+et affichée dans le HUD pour reproduire une partie.
 
 ## Règles
 
@@ -55,19 +64,32 @@ cmake --build build-tests -j 8
 SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software ctest --test-dir build-tests --output-on-failure
 ```
 
-Quatre cibles : régressions de gameplay/configuration, génération, suite des
-modules et règles d'architecture. Le test de génération historique est un
-smoke test ; il ne prouve pas que chaque niveau est franchissable.
+Cinq cibles : acceptation de l'audit, régressions de gameplay/configuration,
+génération, modules et architecture. L'acceptation vérifie les menus, l'audio,
+le rendu des animations et 132 couples graine/difficulté en traversée physique.
+Les assertions d'acceptation restent actives en compilation Release.
 
-## Limites actuelles
+## Installation Linux reproductible
 
-Le jeu reste un prototype, pas une reproduction complète de Nidhogg. Les sprites
-sont encore essentiellement statiques. Le système audio n'est pas implémenté ;
-les valeurs de volume du menu sont seulement persistées. L'IA réactive est le
-mode par défaut ; les variantes de recherche restent expérimentales et leur
-simulation abstraite ne reproduit pas toute la physique. Les niveaux procéduraux
-ne disposent pas encore d'une preuve de franchissabilité par simulation.
+```sh
+bash scripts/bootstrap_linux.sh
+cmake --preset dev -DCMAKE_PREFIX_PATH="$PWD/.deps/install"
+```
 
-Les tests sans affichage ne remplacent pas une partie interactive à deux.
-Voir [la validation des corrections](docs/validation.md) et
-[les dépendances](docs/dependance.md).
+Le script installe deux révisions SDL épinglées dans `.deps/`, sans droits
+administrateur. Pour une fenêtre interactive, installer d'abord les headers X11
+ou Wayland et audio de la distribution avant cette compilation SDL. Sans eux,
+les tests dummy restent utilisables mais pas une fenêtre desktop.
+
+## Validation et choix de conception
+
+Les salles procédurales sont traversées par simulation dans les deux sens avant
+la partie. Celles qui échouent reçoivent un remplacement déterministe vérifié.
+L'IA réactive est le mode par défaut ; les variantes minimax et alpha-beta disponibles
+par API simulent le combat réel sur un horizon borné, avec budget de calcul et délai
+de décision. Elles ne prédisent pas une partie entière.
+
+Les animations utilisent les sprites du dépôt. Ce projet reprend des mécaniques de
+Nidhogg ; ses timings, règles d'arbitrage et présentation restent ceux de Blade Rush.
+Voir [la clôture de l'audit](docs/validation.md) pour les preuves et les limites
+matérielles des vérifications, et [les dépendances](docs/dependance.md).

@@ -5,13 +5,15 @@
 #include "core/constants.h"
 #include "game/arena/arena.h"
 
-typedef enum SwordLine {
+typedef enum SwordLine
+{
     SWORD_LINE_HIGH = 0,
     SWORD_LINE_MID,
     SWORD_LINE_LOW
 } SwordLine;
 
-typedef enum FighterAction {
+typedef enum FighterAction
+{
     FIGHTER_ACTION_IDLE = 0,
     FIGHTER_ACTION_RUN,
     FIGHTER_ACTION_JUMP,
@@ -25,12 +27,14 @@ typedef enum FighterAction {
     FIGHTER_ACTION_DEAD
 } FighterAction;
 
-typedef enum ControllerType {
+typedef enum ControllerType
+{
     CONTROLLER_HUMAN = 0,
     CONTROLLER_AI
 } ControllerType;
 
-typedef struct PlayerCommand {
+typedef struct PlayerCommand
+{
     bool right_pressed;
     bool left_pressed;
     bool up_pressed;
@@ -43,19 +47,23 @@ typedef struct PlayerCommand {
     bool set_sword_line;
 } PlayerCommand;
 
-typedef struct FighterStats {
+typedef struct FighterStats
+{
     f32 move_speed;
     f32 jump_speed;
     f32 gravity;
     f32 max_fall_speed;
 } FighterStats;
 
-typedef struct FighterController {
+typedef struct FighterController
+{
     ControllerType type;
 } FighterController;
 
-typedef struct FighterState {
+typedef struct FighterState
+{
 
+    f32 animation_time;
     Vec2 pos;
     Vec2 vel;
     bool grounded;
@@ -82,13 +90,15 @@ typedef struct FighterState {
     bool alive;
 } FighterState;
 
-typedef struct Fighter {
+typedef struct Fighter
+{
     FighterState state;
     FighterController controller;
     FighterStats stats;
 } Fighter;
 
-typedef struct ThrownSword {
+typedef struct ThrownSword
+{
     bool active;
     i32 owner_index;
     SwordLine line;
@@ -98,12 +108,32 @@ typedef struct ThrownSword {
     f32 rotation_deg;
 } ThrownSword;
 
-typedef struct GroundSword {
+typedef struct GroundSword
+{
     bool active;
     Vec2 pos;
 } GroundSword;
 
-typedef struct CombatState {
+typedef enum CombatEventType
+{
+    COMBAT_EVENT_DEATH,
+    COMBAT_EVENT_DISARM,
+    COMBAT_EVENT_PARRY,
+    COMBAT_EVENT_ATTACK
+} CombatEventType;
+typedef struct CombatEvent
+{
+    CombatEventType type;
+    i32 actor;
+    i32 target;
+} CombatEvent;
+#define COMBAT_MAX_EVENTS 16
+
+typedef struct CombatState
+{
+    CombatEvent events[COMBAT_MAX_EVENTS];
+    i32 event_count;
+    i32 runner_index;
     GroundSword ground_swords[MAX_PLAYERS];
     Fighter fighters[MAX_PLAYERS];
     f32 respawn_timers[MAX_PLAYERS];
@@ -119,17 +149,19 @@ typedef struct CombatState {
     i32 winner_index;
 } CombatState;
 
-bool combat_init(CombatState* combat);
-void combat_shutdown(CombatState* combat);
+/* Shared geometry: simulation and rendering use the same blade segment. */
+f32 combat_sword_reach(const Fighter *fighter);
+f32 combat_sword_y(const Fighter *fighter);
+void combat_emit(CombatState *combat, CombatEventType type, i32 actor, i32 target);
+void combat_drop_sword(CombatState *combat, Vec2 pos);
+bool combat_safe_spawn(const Room *room, f32 desired_x, Vec2 *out);
+bool combat_room_traversable(const Room *room);
+bool combat_init(CombatState *combat);
+void combat_shutdown(CombatState *combat);
 
-void combat_reset_round(CombatState* combat, const Arena* arena);
+void combat_reset_round(CombatState *combat, const Arena *arena);
 
-void combat_step(
-    CombatState* combat,
-    Arena* arena,
-    const PlayerCommand* p1_cmd,
-    const PlayerCommand* p2_cmd,
-    f32 dt
-);
+void combat_step(CombatState *combat, Arena *arena, const PlayerCommand *p1_cmd,
+                 const PlayerCommand *p2_cmd, f32 dt);
 
 #endif

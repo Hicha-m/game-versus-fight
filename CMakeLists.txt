@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.25)
 
 project(game_versus_fight C)
 
@@ -12,6 +12,7 @@ find_package(SDL3 REQUIRED CONFIG)
 find_package(SDL3_image CONFIG)
 
 add_library(game_core STATIC
+    src/engine/audio.c
     src/engine/engine.c
     src/engine/input.c
 
@@ -84,7 +85,7 @@ option(GAME_BUILD_TESTS "Build regression and integration tests" ON)
 if (GAME_BUILD_TESTS)
     enable_testing()
 
-    target_compile_definitions(game_core PRIVATE GAME_TEST_MODE=1)
+    # Production and tests use the same simulation and platform build.
 
     add_executable(game_tests
         tests/test_main.c
@@ -97,6 +98,12 @@ if (GAME_BUILD_TESTS)
 
     target_link_libraries(game_tests PRIVATE game_core)
 
+    add_executable(audit_tests tests/test_audit.c)
+    target_link_libraries(audit_tests PRIVATE game_core)
+    add_test(NAME audit_tests COMMAND audit_tests)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/audit-work)
+    set_tests_properties(audit_tests PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/audit-work)
+
     add_executable(regression_tests tests/test_regressions.c)
     target_link_libraries(regression_tests PRIVATE game_core)
     add_test(NAME regression_tests COMMAND regression_tests)
@@ -107,6 +114,15 @@ if (GAME_BUILD_TESTS)
     add_test(NAME generation_tests COMMAND generation_tests)
     add_test(NAME game_tests COMMAND game_tests)
     add_test(NAME architecture_rules COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_architecture.sh)
+    set_tests_properties(audit_tests game_tests regression_tests generation_tests PROPERTIES
+        ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_RENDER_DRIVER=software;SDL_AUDIODRIVER=dummy" TIMEOUT 120)
+    if(MSVC)
+        target_compile_options(audit_tests PRIVATE /UNDEBUG)
+        target_compile_options(regression_tests PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(audit_tests PRIVATE -UNDEBUG)
+        target_compile_options(regression_tests PRIVATE -UNDEBUG)
+    endif()
 endif()
 
 add_custom_target(run_game

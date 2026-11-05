@@ -1,15 +1,17 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-
-
+#include <stdlib.h>
+#include <ctype.h>
+#include <errno.h>
 
 #include "game/config.h"
 #include "utils/log.h"
 
-static void keybind_set_defaults_p1(PlayerKeybindConfig* kb)
+static void keybind_set_defaults_p1(PlayerKeybindConfig *kb)
 {
-    if (!kb) return;
+    if (!kb)
+        return;
     kb->keys[ACTION_RIGHT] = 7;
     kb->keys[ACTION_LEFT] = 4;
     kb->keys[ACTION_UP] = 26;
@@ -19,9 +21,10 @@ static void keybind_set_defaults_p1(PlayerKeybindConfig* kb)
     kb->keys[ACTION_THROW] = 14;
 }
 
-static void keybind_set_defaults_p2(PlayerKeybindConfig* kb)
+static void keybind_set_defaults_p2(PlayerKeybindConfig *kb)
 {
-    if (!kb) return;
+    if (!kb)
+        return;
     kb->keys[ACTION_RIGHT] = 79;
     kb->keys[ACTION_LEFT] = 80;
     kb->keys[ACTION_UP] = 82;
@@ -31,9 +34,10 @@ static void keybind_set_defaults_p2(PlayerKeybindConfig* kb)
     kb->keys[ACTION_THROW] = 229;
 }
 
-void config_set_defaults(GameConfig* config)
+void config_set_defaults(GameConfig *config)
 {
-    if (!config) {
+    if (!config)
+    {
         return;
     }
 
@@ -48,126 +52,236 @@ void config_set_defaults(GameConfig* config)
     config->fullscreen = false;
 }
 
-void config_reset(GameConfig* config)
+void config_reset(GameConfig *config)
 {
     config_set_defaults(config);
 }
 
-bool config_validate(const GameConfig* config)
+bool config_validate(const GameConfig *config)
 {
-    if (!config) {
+    if (!config)
+    {
         return false;
     }
 
-    if (!isfinite(config->master_volume) || !isfinite(config->music_volume) || !isfinite(config->sfx_volume)) return false;
-    for(i32 p=0;p<MAX_PLAYERS;p++) for(i32 a=0;a<ACTION_COUNT;a++) if(config->keybinds[p].keys[a]>=512) return false;
-    if (config->master_volume < 0.0f || config->master_volume > 1.0f) {
+    if (!isfinite(config->master_volume) || !isfinite(config->music_volume) ||
+        !isfinite(config->sfx_volume))
+        return false;
+    for (i32 p = 0; p < MAX_PLAYERS; p++)
+        for (i32 a = 0; a < ACTION_COUNT; a++)
+            if (config->keybinds[p].keys[a] >= 512)
+                return false;
+    if (config->master_volume < 0.0f || config->master_volume > 1.0f)
+    {
         return false;
     }
-    if (config->music_volume < 0.0f || config->music_volume > 1.0f) {
+    if (config->music_volume < 0.0f || config->music_volume > 1.0f)
+    {
         return false;
     }
-    if (config->sfx_volume < 0.0f || config->sfx_volume > 1.0f) {
+    if (config->sfx_volume < 0.0f || config->sfx_volume > 1.0f)
+    {
         return false;
     }
 
-    if (config->ai_difficulty < AI_DIFFICULTY_EASY || config->ai_difficulty > AI_DIFFICULTY_EXPERT) {
+    if (config->ai_difficulty < AI_DIFFICULTY_EASY || config->ai_difficulty > AI_DIFFICULTY_EXPERT)
+    {
         return false;
     }
 
     return true;
 }
 
-bool config_load(GameConfig* config)
+/* Bounded JSON reader for the configuration schema. Parse into a temporary
+ * object so malformed input cannot partially change live settings. */
+static void skip_space(const char **text)
 {
-    FILE* f;
-    char buffer[2048];
-    i32 ai_diff, fullscreen;
-    i32 player = 0;
-    char fullscreen_token[16];
+    while (isspace((unsigned char)**text))
+        ++*text;
+}
 
-    if (!config) {
+static bool read_string(const char **text, char *out, size_t capacity)
+{
+    skip_space(text);
+    if (*(*text)++ != '\"')
         return false;
+    size_t length = 0;
+    while (**text && **text != '\"')
+    {
+        char value = *(*text)++;
+        if ((unsigned char)value < 32 || value == '\\' || length + 1 >= capacity)
+            return false;
+        out[length++] = value;
     }
+    if (**text != '\"')
+        return false;
+    ++*text;
+    out[length] = 0;
+    return true;
+}
 
-    config_set_defaults(config);
-
-    f = fopen(CONFIG_FILENAME, "r");
-    if (!f) {
-        log_info("Config file not found, using defaults");
+static bool read_object(const char **text, GameConfig *config, const char *section, i32 player,
+                        i32 depth)
+{
+    if (depth > 8)
+        return false;
+    skip_space(text);
+    if (**text != '{')
+        return false;
+    ++*text;
+    skip_space(text);
+    if (**text == '}')
+    {
+        ++*text;
         return true;
     }
-
-    while (fgets(buffer, sizeof(buffer), f)) {
-
-        if (sscanf(buffer, "    \"master_volume\": %f", &config->master_volume) == 1) {
-            continue;
+    do
+    {
+        char key[64];
+        if (!read_string(text, key, sizeof(key)))
+            return false;
+        skip_space(text);
+        if (**text != ':')
+            return false;
+        ++*text;
+        skip_space(text);
+        if (**text == '{')
+        {
+            i32 child_player = strcmp(key, "player1") == 0   ? 0
+                               : strcmp(key, "player2") == 0 ? 1
+                                                             : -1;
+            if (!read_object(text, config, key, child_player, depth + 1))
+                return false;
         }
-        if (sscanf(buffer, "    \"music_volume\": %f", &config->music_volume) == 1) {
-            continue;
+        else if (**text == '\"')
+        {
+            char value[128];
+            if (!read_string(text, value, sizeof(value)))
+                return false;
+            if (strcmp(key, "version") != 0)
+                return false;
         }
-        if (sscanf(buffer, "    \"sfx_volume\": %f", &config->sfx_volume) == 1) {
-            continue;
-        }
-
-        if (sscanf(buffer, "    \"ai_difficulty\": %d", &ai_diff) == 1) {
-            config->ai_difficulty = (AIDifficulty)ai_diff;
-            continue;
-        }
-        if (sscanf(buffer, "    \"fullscreen\": %15[^,\n\r ]", fullscreen_token) == 1) {
-            if (strcmp(fullscreen_token, "true") == 0) {
-                config->fullscreen = true;
-                continue;
+        else
+        {
+            const char *begin = *text;
+            while (**text && **text != ',' && **text != '}' && !isspace((unsigned char)**text))
+                ++*text;
+            size_t length = (size_t)(*text - begin);
+            char value[64];
+            if (length == 0 || length >= sizeof(value))
+                return false;
+            memcpy(value, begin, length);
+            value[length] = 0;
+            bool boolean = strcmp(value, "true") == 0 || strcmp(value, "false") == 0;
+            char *end = NULL;
+            errno = 0;
+            double number = boolean ? (strcmp(value, "true") == 0) : strtod(value, &end);
+            if (!boolean && (errno || !end || *end || !isfinite(number)))
+                return false;
+            if (strcmp(section, "audio") == 0)
+            {
+                if (boolean || number < 0 || number > 1)
+                    return false;
+                if (strcmp(key, "master_volume") == 0)
+                    config->master_volume = (f32)number;
+                else if (strcmp(key, "music_volume") == 0)
+                    config->music_volume = (f32)number;
+                else if (strcmp(key, "sfx_volume") == 0)
+                    config->sfx_volume = (f32)number;
+                else
+                    return false;
             }
-            if (strcmp(fullscreen_token, "false") == 0) {
-                config->fullscreen = false;
-                continue;
+            else if (strcmp(section, "gameplay") == 0)
+            {
+                if (strcmp(key, "fullscreen") == 0)
+                {
+                    if (number != 0 && number != 1)
+                        return false;
+                    config->fullscreen = number != 0;
+                }
+                else if (strcmp(key, "ai_difficulty") == 0)
+                {
+                    if (boolean || number < 0 || number > 3 || floor(number) != number)
+                        return false;
+                    config->ai_difficulty = (AIDifficulty)number;
+                }
+                else
+                    return false;
             }
-        }
-        if (sscanf(buffer, "    \"fullscreen\": %d", &fullscreen) == 1) {
-            config->fullscreen = (bool)fullscreen;
-            continue;
-        }
-
-        if (strstr(buffer, "\"player1\"")) player = 0;
-        if (strstr(buffer, "\"player2\"")) player = 1;
-        i32 action, scancode;
-        if (sscanf(buffer, "      \"key_%d\": %d", &action, &scancode) == 2) {
-            if (action < 0 || action >= ACTION_COUNT || scancode < 0 || scancode >= 512) {
-                fclose(f); config_set_defaults(config); return false;
+            else if (player >= 0)
+            {
+                if (strncmp(key, "key_", 4) != 0)
+                    return false;
+                errno = 0;
+                char *index_end;
+                long action = strtol(key + 4, &index_end, 10);
+                if (errno || index_end == key + 4 || *index_end || action < 0 ||
+                    action >= ACTION_COUNT || boolean || number <= 0 || number >= 512 ||
+                    floor(number) != number)
+                    return false;
+                config->keybinds[player].keys[action] = (u16)number;
             }
-            config->keybinds[player].keys[action] = (u16)scancode;
+            else
+                return false;
         }
+        skip_space(text);
+        if (**text == '}')
+        {
+            ++*text;
+            return true;
+        }
+        if (**text != ',')
+            return false;
+        ++*text;
+    } while (**text);
+    return false;
+}
 
-    }
-
-    fclose(f);
-
-    if (!config_validate(config)) {
-        log_warn("Config validation failed, resetting to defaults");
-        config_set_defaults(config);
+bool config_load(GameConfig *config)
+{
+    if (!config)
         return false;
-    }
-
-    log_info("Config loaded from %s", CONFIG_FILENAME);
+    config_set_defaults(config);
+    FILE *file = fopen(CONFIG_FILENAME, "rb");
+    if (!file)
+        return true;
+    char buffer[8193];
+    size_t size = fread(buffer, 1, sizeof(buffer) - 1, file);
+    bool failed = ferror(file) || !feof(file);
+    fclose(file);
+    buffer[size] = 0;
+    if (failed || memchr(buffer, 0, size))
+        return false;
+    GameConfig candidate;
+    config_set_defaults(&candidate);
+    const char *cursor = buffer;
+    if (!read_object(&cursor, &candidate, "", -1, 0))
+        return false;
+    skip_space(&cursor);
+    if (*cursor || !config_validate(&candidate))
+        return false;
+    *config = candidate;
     return true;
 }
 
-bool config_save(const GameConfig* config)
+bool config_save(const GameConfig *config)
 {
-    FILE* f;
+    FILE *f;
 
-    if (!config) {
+    if (!config)
+    {
         return false;
     }
 
-    if (!config_validate(config)) {
+    if (!config_validate(config))
+    {
         log_warn("Config validation failed, not saving");
         return false;
     }
 
-    f = fopen(CONFIG_FILENAME, "w");
-    if (!f) {
+    f = fopen(CONFIG_FILENAME ".tmp", "w");
+    if (!f)
+    {
         log_error("Could not open %s for writing", CONFIG_FILENAME);
         return false;
     }
@@ -185,13 +299,15 @@ bool config_save(const GameConfig* config)
     fprintf(f, "  },\n");
     fprintf(f, "  \"keybinds\": {\n");
     fprintf(f, "    \"player1\": {\n");
-    for (i32 i = 0; i < ACTION_COUNT; i++) {
+    for (i32 i = 0; i < ACTION_COUNT; i++)
+    {
         fprintf(f, "      \"key_%d\": %d%s\n", i, config->keybinds[0].keys[i],
                 (i < ACTION_COUNT - 1) ? "," : "");
     }
     fprintf(f, "    },\n");
     fprintf(f, "    \"player2\": {\n");
-    for (i32 i = 0; i < ACTION_COUNT; i++) {
+    for (i32 i = 0; i < ACTION_COUNT; i++)
+    {
         fprintf(f, "      \"key_%d\": %d%s\n", i, config->keybinds[1].keys[i],
                 (i < ACTION_COUNT - 1) ? "," : "");
     }
@@ -199,7 +315,16 @@ bool config_save(const GameConfig* config)
     fprintf(f, "  }\n");
     fprintf(f, "}\n");
 
-    fclose(f);
+    bool failed = ferror(f) != 0;
+    if (fclose(f) != 0)
+        failed = true;
+    if (failed)
+    {
+        remove(CONFIG_FILENAME ".tmp");
+        return false;
+    }
+    if (rename(CONFIG_FILENAME ".tmp", CONFIG_FILENAME) != 0)
+        return false;
     log_info("Config saved to %s", CONFIG_FILENAME);
     return true;
 }

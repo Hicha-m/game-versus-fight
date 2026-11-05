@@ -4,7 +4,8 @@
 #include <SDL3/SDL.h>
 #include "engine/engine.h"
 
-typedef struct PlayerKeybind {
+typedef struct PlayerKeybind
+{
     SDL_Scancode right;
     SDL_Scancode left;
     SDL_Scancode down;
@@ -15,28 +16,29 @@ typedef struct PlayerKeybind {
     SDL_Scancode throw_weapon;
 } PlayerKeybind;
 
-struct Engine {
-    SDL_Window* window;
-    SDL_Renderer* renderer;
+struct Engine
+{
+    SDL_AudioStream *audio;
+    u64 audio_sample;
+    i32 effect_samples;
+    f32 effect_frequency;
+    bool vsync;
+    u64 frame_start;
+    SDL_Window *window;
+    SDL_Renderer *renderer;
     bool running;
     PlayerKeybind keybinds[MAX_PLAYERS];
     FrameInput previous_input;
 };
 
-void update_button(InputState* out, bool current_down, bool previous_down);
+void engine_audio_start(Engine *engine);
 
-void fill_player_input_from_keybind(
-    const bool* keys,
-    const PlayerKeybind* bind,
-    const PlayerInput* previous,
-    PlayerInput* out_current
-);
+void update_button(InputState *out, bool current_down, bool previous_down);
 
-void engine_apply_keyboard_to_frame_input(
-    Engine* engine,
-    const bool* keys,
-    FrameInput* out_input
-);
+void fill_player_input_from_keybind(const bool *keys, const PlayerKeybind *bind,
+                                    const PlayerInput *previous, PlayerInput *out_current);
+
+void engine_apply_keyboard_to_frame_input(Engine *engine, const bool *keys, FrameInput *out_input);
 
 void input_set_default_keybinds(PlayerKeybind keybinds[MAX_PLAYERS]);
 

@@ -6,32 +6,7 @@
 #include "game_internal.h"
 #include "utils/log.h"
 
-static bool game_quit_requested = false;
-static bool game_rng_seeded = false;
-
-static void game_seed_rng_once(void)
-{
-    if (game_rng_seeded) {
-        return;
-    }
-
-    srand((unsigned int)time(NULL));
-    game_rng_seeded = true;
-}
-
-static u32 game_random_seed(void)
-{
-    i32 r;
-
-    game_seed_rng_once();
-    r = rand();
-    if (r < 0) {
-        r = -r;
-    }
-    return (u32)r;
-}
-
-void game_start_match(Game* game)
+void game_start_match(Game *game)
 {
     arena_set_middle_room(&game->arena);
     memset(&game->match_stats, 0, sizeof(game->match_stats));
@@ -41,21 +16,41 @@ void game_start_match(Game* game)
     combat_reset_round(&game->combat, &game->arena);
 }
 
-void game_set_arena_options(Game* game, const ArenaOptions* options)
+void game_set_arena_options(Game *game, const ArenaOptions *options)
 {
-    if (game && options) {
+    if (game && options)
+    {
         game->arena_options = *options;
     }
 }
 
-bool game_regenerate_arena(Game* game)
+bool game_regenerate_arena(Game *game)
 {
-    if (!game) {
+    if (!game)
+    {
         return false;
     }
 
     arena_shutdown(&game->arena);
-    return arena_init_with_options(&game->arena, &game->arena_options);
+    if (!arena_init_with_options(&game->arena, &game->arena_options))
+        return false;
+    Arena fallback;
+    arena_init(&fallback);
+    arena_build_default(&fallback);
+    for (i32 i = 0; i < game->arena.room_count; i++)
+    {
+        if (!room_validate_spawns(&game->arena.rooms[i]) ||
+            !combat_room_traversable(&game->arena.rooms[i]))
+        {
+            game->arena.rooms[i] = fallback.rooms[i];
+            if (!room_validate_spawns(&game->arena.rooms[i]) ||
+                !combat_room_traversable(&game->arena.rooms[i]))
+                return false;
+        }
+    }
+    log_info("Arena seed=%u difficulty=%d", game->arena_options.seed,
+             game->arena_options.difficulty);
+    return true;
 }
 
 static i32 fighter_target_room_direction(i32 fighter_index)
@@ -63,47 +58,72 @@ static i32 fighter_target_room_direction(i32 fighter_index)
     return (fighter_index == 0) ? 1 : -1;
 }
 
-static void game_update_room_push_from_kill(Game* game)
+static void game_update_room_push_from_kill(Game *game)
 {
-    if (!game || !game->combat.kill_happened) {
+    if (!game)
         return;
+    bool someone_died = false;
+    i32 candidate = game->combat.runner_index;
+    for (i32 i = 0; i < game->combat.event_count; ++i)
+    {
+        CombatEvent e = game->combat.events[i];
+        if (e.type == COMBAT_EVENT_ATTACK)
+            game->audio_events |= 2u;
+        if (e.type == COMBAT_EVENT_DISARM)
+        {
+            game->match_stats.disarms[e.target]++;
+            game->audio_events |= 2u;
+        }
+        if (e.type != COMBAT_EVENT_DEATH)
+            continue;
+        someone_died = true;
+        game->audio_events |= 1u;
+        if (e.actor >= 0 && e.actor < MAX_PLAYERS)
+        {
+            game->match_stats.kills[e.actor]++;
+            candidate = e.actor;
+        }
+        else if (candidate == e.target)
+            candidate = -1;
     }
-
-    if (game->combat.kill_counts_for_progress &&
-        game->combat.kill_attacker_index >= 0 &&
-        game->combat.kill_attacker_index < MAX_PLAYERS) {
-        game->room_push_direction = fighter_target_room_direction(game->combat.kill_attacker_index);
-        game->match_stats.kills[game->combat.kill_attacker_index]++;
-    } else {
-        game->room_push_direction = 0;
-    }
-
+    if (candidate >= 0 && !game->combat.fighters[candidate].state.alive)
+        candidate = -1;
+    if (someone_died)
+        game->combat.runner_index = candidate;
+    game->room_push_direction = candidate >= 0 ? fighter_target_room_direction(candidate) : 0;
     game->combat.kill_happened = false;
 }
 
-static i32 game_check_victory(Game* game)
+static i32 game_check_victory(Game *game)
 {
-    if (!game) {
+    if (!game)
+    {
         return -1;
     }
 
-    if (game->arena.current_room == game->arena.room_count - 1 && game->room_push_direction > 0 && game->combat.fighters[0].state.alive && arena_get_current_room_const(&game->arena) && game->combat.fighters[0].state.pos.x + PLAYER_WIDTH >= arena_get_current_room_const(&game->arena)->transition.right_trigger_x) {
+    if (game->arena.current_room == game->arena.room_count - 1 && game->room_push_direction > 0 &&
+        game->combat.fighters[0].state.alive && arena_get_current_room_const(&game->arena) &&
+        game->combat.fighters[0].state.pos.x + PLAYER_WIDTH >=
+            arena_get_current_room_const(&game->arena)->transition.right_trigger_x)
+    {
         return 0;
     }
 
-    if (game->arena.current_room == 0 && game->room_push_direction < 0 && game->combat.fighters[1].state.alive && game->combat.fighters[1].state.pos.x <= arena_get_current_room_const(&game->arena)->transition.left_trigger_x) {
+    if (game->arena.current_room == 0 && game->room_push_direction < 0 &&
+        game->combat.fighters[1].state.alive &&
+        game->combat.fighters[1].state.pos.x <=
+            arena_get_current_room_const(&game->arena)->transition.left_trigger_x)
+    {
         return 1;
     }
 
     return -1;
 }
 
-void game_build_player_command_from_input(
-    PlayerCommand* out_cmd,
-    const PlayerInput* input
-)
+void game_build_player_command_from_input(PlayerCommand *out_cmd, const PlayerInput *input)
 {
-    if (!out_cmd || !input) {
+    if (!out_cmd || !input)
+    {
         return;
     }
 
@@ -117,87 +137,104 @@ void game_build_player_command_from_input(
     out_cmd->thrust_pressed = input->actions[ACTION_THRUST].pressed;
     out_cmd->throw_pressed = input->actions[ACTION_THROW].pressed;
     out_cmd->roll_pressed = input->actions[ACTION_DOWN].down && input->actions[ACTION_JUMP].pressed;
-    if (out_cmd->roll_pressed) out_cmd->jump_pressed = false;
+    if (out_cmd->roll_pressed)
+        out_cmd->jump_pressed = false;
     out_cmd->target_sword_line = SWORD_LINE_MID;
 }
 
-void game_collect_commands(
-    Game* game,
-    const FrameInput* input,
-    PlayerCommand* out_p1,
-    PlayerCommand* out_p2,
-    f32 dt
-)
+void game_collect_commands(Game *game, const FrameInput *input, PlayerCommand *out_p1,
+                           PlayerCommand *out_p2, f32 dt)
 {
-    Fighter* f1;
-    Fighter* f2;
+    Fighter *f1;
+    Fighter *f2;
 
-    if (!game || !input || !out_p1 || !out_p2) {
+    if (!game || !input || !out_p1 || !out_p2)
+    {
         return;
     }
 
     f1 = &game->combat.fighters[0];
     f2 = &game->combat.fighters[1];
 
-    if (f1->controller.type == CONTROLLER_HUMAN) {
+    if (f1->controller.type == CONTROLLER_HUMAN)
+    {
         game_build_player_command_from_input(out_p1, &input->players[0]);
-    } else {
-        *out_p1 = ai_think(&game->ai_controllers[0], &game->arena, &game->combat, 0, dt, game->match_stats.kills);
+    }
+    else
+    {
+        *out_p1 = ai_think(&game->ai_controllers[0], &game->arena, &game->combat, 0, dt,
+                           game->match_stats.kills);
     }
 
-    if (f2->controller.type == CONTROLLER_HUMAN) {
+    if (f2->controller.type == CONTROLLER_HUMAN)
+    {
         game_build_player_command_from_input(out_p2, &input->players[1]);
-    } else {
-        *out_p2 = ai_think(&game->ai_controllers[1], &game->arena, &game->combat, 1, dt, game->match_stats.kills);
+    }
+    else
+    {
+        *out_p2 = ai_think(&game->ai_controllers[1], &game->arena, &game->combat, 1, dt,
+                           game->match_stats.kills);
     }
 }
 
-void game_handle_room_transitions(Game* game)
+void game_handle_room_transitions(Game *game)
 {
-    Fighter* p1;
-    Fighter* p2;
+    Fighter *p1;
+    Fighter *p2;
     bool moved = false;
 
-    if (!game) {
+    if (!game)
+    {
         return;
     }
 
     p1 = &game->combat.fighters[0];
     p2 = &game->combat.fighters[1];
 
-    if (game->room_push_direction > 0) {
+    if (game->room_push_direction > 0)
+    {
 
-        if (p1->state.alive && arena_can_transition_right(&game->arena, &p1->state.pos)) {
+        if (p1->state.alive && arena_can_transition_right(&game->arena, &p1->state.pos))
+        {
             moved = arena_transition_right(&game->arena);
         }
-    } else if (game->room_push_direction < 0) {
+    }
+    else if (game->room_push_direction < 0)
+    {
 
-        if (p2->state.alive && arena_can_transition_left(&game->arena, &p2->state.pos)) {
+        if (p2->state.alive && arena_can_transition_left(&game->arena, &p2->state.pos))
+        {
             moved = arena_transition_left(&game->arena);
         }
     }
 
-    if (moved) {
+    if (moved)
+    {
         game->match_stats.room_progress = game->arena.current_room;
-        const Room* room = arena_get_current_room_const(&game->arena);
+        game->combat.runner_index = game->room_push_direction > 0 ? 0 : 1;
+        const Room *room = arena_get_current_room_const(&game->arena);
         i32 runner = game->room_push_direction > 0 ? 0 : 1;
-        Fighter* f = &game->combat.fighters[runner];
+        Fighter *f = &game->combat.fighters[runner];
         f->state.pos.x = runner == 0 ? 16.0f : room->width_tiles * TILE_SIZE - PLAYER_WIDTH - 16.0f;
         f->state.pos.y = room->spawns.attacker_spawn.y;
-        game->combat.fighters[1-runner].state.alive = false;
-        game->combat.fighters[1-runner].state.action = FIGHTER_ACTION_DEAD;
-        game->combat.respawn_timers[1-runner] = 0.0f;
+        combat_safe_spawn(room, f->state.pos.x, &f->state.pos);
+        bool defender_was_alive = game->combat.fighters[1 - runner].state.alive;
+        game->combat.fighters[1 - runner].state.alive = false;
+        game->combat.fighters[1 - runner].state.action = FIGHTER_ACTION_DEAD;
+        if (defender_was_alive)
+            game->combat.respawn_timers[1 - runner] = 0.0f;
         game->combat.thrown_sword.active = false;
         memset(game->combat.ground_swords, 0, sizeof(game->combat.ground_swords));
     }
 }
 
-void game_handle_round_end(Game* game)
+void game_handle_round_end(Game *game)
 {
     i32 winner;
     i32 loser;
 
-    if (!game) {
+    if (!game)
+    {
         return;
     }
 
@@ -206,13 +243,16 @@ void game_handle_round_end(Game* game)
 
     game->match_stats.rounds_played++;
 
-    if (winner >= 0 && winner < MAX_PLAYERS) {
+    if (winner >= 0 && winner < MAX_PLAYERS)
+    {
         game->match_stats.wins[winner]++;
         game->match_stats.kills[winner]++;
     }
 
-    if (loser >= 0 && loser < MAX_PLAYERS) {
-        if (!game->combat.fighters[loser].state.has_sword) {
+    if (loser >= 0 && loser < MAX_PLAYERS)
+    {
+        if (!game->combat.fighters[loser].state.has_sword)
+        {
             game->match_stats.disarms[loser]++;
         }
     }
@@ -220,35 +260,39 @@ void game_handle_round_end(Game* game)
     combat_reset_round(&game->combat, &game->arena);
 }
 
-bool game_init(Game* game)
+bool game_init(Game *game)
 {
-    if (!game) {
+    if (!game)
+    {
         return false;
     }
 
     memset(game, 0, sizeof(*game));
-    game_seed_rng_once();
 
     game->phase = GAME_PHASE_MENU;
 
-    if (!menu_init(&game->menu)) {
+    if (!menu_init(&game->menu))
+    {
         return false;
     }
 
     game->arena_options = arena_options_default();
 
-    if (!arena_init_with_options(&game->arena, &game->arena_options)) {
+    if (!arena_init_with_options(&game->arena, &game->arena_options))
+    {
         menu_shutdown(&game->menu);
         return false;
     }
 
-    if (!combat_init(&game->combat)) {
+    if (!combat_init(&game->combat))
+    {
         arena_shutdown(&game->arena);
         menu_shutdown(&game->menu);
         return false;
     }
 
-    if (!ai_init(&game->ai_controllers[0]) || !ai_init(&game->ai_controllers[1])) {
+    if (!ai_init(&game->ai_controllers[0]) || !ai_init(&game->ai_controllers[1]))
+    {
         combat_shutdown(&game->combat);
         arena_shutdown(&game->arena);
         menu_shutdown(&game->menu);
@@ -266,9 +310,10 @@ bool game_init(Game* game)
     return true;
 }
 
-void game_shutdown(Game* game)
+void game_shutdown(Game *game)
 {
-    if (!game) {
+    if (!game)
+    {
         return;
     }
 
@@ -279,116 +324,130 @@ void game_shutdown(Game* game)
     arena_shutdown(&game->arena);
 }
 
-void game_update(Game* game, const FrameInput* input, f32 dt)
+void game_update(Game *game, const FrameInput *input, f32 dt)
 {
     PlayerCommand p1_cmd;
     PlayerCommand p2_cmd;
     MenuAction menu_action;
 
-    if (!game || !input) {
+    if (!game || !input)
+    {
         return;
     }
 
-    if (game->phase == GAME_PHASE_MENU) {
+    if (game->phase == GAME_PHASE_MENU)
+    {
         menu_update(&game->menu, input, dt);
         menu_action = menu_get_action(&game->menu);
 
-        switch (menu_action) {
-            case MENU_ACTION_PLAY_SOLO:
+        switch (menu_action)
+        {
+        case MENU_ACTION_PLAY_SOLO:
 
+            game->combat.fighters[0].controller.type = CONTROLLER_HUMAN;
+            game->combat.fighters[1].controller.type = CONTROLLER_AI;
+            ai_set_difficulty(&game->ai_controllers[1], game->menu.selected_difficulty);
+            game_start_match(game);
+            game->phase = GAME_PHASE_MATCH;
+            break;
+
+        case MENU_ACTION_PLAY_MULTIPLAYER:
+
+            game->combat.fighters[0].controller.type = CONTROLLER_HUMAN;
+            game->combat.fighters[1].controller.type = CONTROLLER_HUMAN;
+            game_start_match(game);
+            game->phase = GAME_PHASE_MATCH;
+            break;
+
+        case MENU_ACTION_START_MATCH:
+        {
+
+            const ArenaOptions *opts = menu_get_arena_options(&game->menu);
+            if (opts)
+            {
+                ArenaOptions run_opts = *opts;
+
+                game_set_arena_options(game, &run_opts);
+                if (!game_regenerate_arena(game))
+                {
+                    log_error("Arena validation failed");
+                    break;
+                }
+            }
+
+            if (game->menu.is_solo)
+            {
                 game->combat.fighters[0].controller.type = CONTROLLER_HUMAN;
                 game->combat.fighters[1].controller.type = CONTROLLER_AI;
                 ai_set_difficulty(&game->ai_controllers[1], game->menu.selected_difficulty);
-                game_start_match(game);
-                game->phase = GAME_PHASE_MATCH;
-                break;
-
-            case MENU_ACTION_PLAY_MULTIPLAYER:
-
+            }
+            else
+            {
                 game->combat.fighters[0].controller.type = CONTROLLER_HUMAN;
                 game->combat.fighters[1].controller.type = CONTROLLER_HUMAN;
-                game_start_match(game);
-                game->phase = GAME_PHASE_MATCH;
-                break;
-
-            case MENU_ACTION_START_MATCH: {
-
-                const ArenaOptions* opts = menu_get_arena_options(&game->menu);
-                if (opts) {
-                    ArenaOptions run_opts = *opts;
-
-                    if (run_opts.mode == ARENA_MODE_PROCEDURAL || run_opts.mode == ARENA_MODE_CORRIDOR) {
-                        run_opts.seed = game_random_seed();
-                    }
-
-                    game_set_arena_options(game, &run_opts);
-                    game_regenerate_arena(game);
-                }
-
-                if (game->menu.is_solo) {
-                    game->combat.fighters[0].controller.type = CONTROLLER_HUMAN;
-                    game->combat.fighters[1].controller.type = CONTROLLER_AI;
-                    ai_set_difficulty(&game->ai_controllers[1], game->menu.selected_difficulty);
-                } else {
-                    game->combat.fighters[0].controller.type = CONTROLLER_HUMAN;
-                    game->combat.fighters[1].controller.type = CONTROLLER_HUMAN;
-                }
-
-                game_start_match(game);
-                game->phase = GAME_PHASE_MATCH;
-                break;
             }
 
-            case MENU_ACTION_QUIT:
+            game_start_match(game);
+            game->phase = GAME_PHASE_MATCH;
+            break;
+        }
 
-                game_quit_requested = true;
-                break;
+        case MENU_ACTION_QUIT:
 
-            default:
-                break;
+            game->quit_requested = true;
+            break;
+
+        default:
+            break;
         }
 
         return;
     }
 
-    if (game->phase == GAME_PHASE_PAUSED) {
+    if (game->phase == GAME_PHASE_PAUSED)
+    {
         menu_update(&game->menu, input, dt);
         menu_action = menu_get_action(&game->menu);
 
-        switch (menu_action) {
-            case MENU_ACTION_RESUME:
-                game->phase = GAME_PHASE_MATCH;
-                break;
-            case MENU_ACTION_BACK_TO_MENU:
-                game->phase = GAME_PHASE_MENU;
-                menu_set_state(&game->menu, MENU_STATE_MAIN);
-                break;
-            default:
-                break;
+        switch (menu_action)
+        {
+        case MENU_ACTION_RESUME:
+            game->phase = GAME_PHASE_MATCH;
+            break;
+        case MENU_ACTION_BACK_TO_MENU:
+            game->phase = GAME_PHASE_MENU;
+            menu_set_state(&game->menu, MENU_STATE_MAIN);
+            break;
+        default:
+            break;
         }
 
         return;
     }
 
-    if (game->phase == GAME_PHASE_VICTORY) {
+    if (game->phase == GAME_PHASE_VICTORY)
+    {
 
         if (input->players[0].actions[ACTION_THRUST].pressed ||
-            input->players[1].actions[ACTION_THRUST].pressed ||
-            input->pause.pressed) {
+            input->players[1].actions[ACTION_THRUST].pressed || input->pause.pressed)
+        {
             game->phase = GAME_PHASE_MENU;
             menu_set_state(&game->menu, MENU_STATE_MAIN);
         }
         return;
     }
 
-    if (input->pause.pressed) {
-        if (game->phase == GAME_PHASE_MATCH) {
+    if (input->pause.pressed)
+    {
+        if (game->phase == GAME_PHASE_MATCH)
+        {
             game->phase = GAME_PHASE_PAUSED;
             menu_set_state(&game->menu, MENU_STATE_PAUSE);
         }
     }
 
-    if (game->phase != GAME_PHASE_MATCH) {
+    if (game->phase != GAME_PHASE_MATCH)
+    {
         return;
     }
 
@@ -397,7 +456,8 @@ void game_update(Game* game, const FrameInput* input, f32 dt)
     combat_step(&game->combat, &game->arena, &p1_cmd, &p2_cmd, dt);
     game_update_room_push_from_kill(game);
 
-    if (game->combat.round_over) {
+    if (game->combat.round_over)
+    {
         game_handle_round_end(game);
         return;
     }
@@ -406,13 +466,14 @@ void game_update(Game* game, const FrameInput* input, f32 dt)
 
     {
         i32 winner = game_check_victory(game);
-        if (winner >= 0 && winner < MAX_PLAYERS) {
+        if (winner >= 0 && winner < MAX_PLAYERS)
+        {
 
             game->combat.winner_index = winner;
 
             game->match_stats.rounds_played++;
             game->match_stats.wins[winner]++;
-
+            game->audio_events |= 2u;
 
             game->victory_winner_index = winner;
             game->phase = GAME_PHASE_VICTORY;
@@ -420,7 +481,7 @@ void game_update(Game* game, const FrameInput* input, f32 dt)
     }
 }
 
-bool game_is_quit_requested(void)
+bool game_is_quit_requested(const Game *game)
 {
-    return game_quit_requested;
+    return game && game->quit_requested;
 }

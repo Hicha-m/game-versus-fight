@@ -8,3 +8,7 @@ build-tests
 .vscode
 game_config.json
 build-sanitize/
+
+.deps/
+
+build-release/

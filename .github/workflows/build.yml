@@ -1,0 +1,25 @@
+name: Build and regression checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install desktop development headers
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxext-dev libxcursor-dev libxrandr-dev libxi-dev libxfixes-dev libxss-dev libasound2-dev libpulse-dev
+      - name: Build pinned SDL dependencies
+        run: bash scripts/bootstrap_linux.sh
+      - name: Configure with sanitizers
+        run: cmake --preset dev -DCMAKE_PREFIX_PATH="$PWD/.deps/install" -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+      - name: Build
+        run: cmake --build --preset build --parallel 4
+      - name: Test
+        run: ctest --preset test
+      - name: Retain rendered acceptance frame
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-frame
+          path: build/audit-work/audit-frame.bmp
