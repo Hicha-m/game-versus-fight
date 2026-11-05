@@ -63,6 +63,7 @@ int main(void)
     assert(c.fighters[0].state.pos.y == 320);
     setup();
     c.fighters[0].state.is_attacking = true;
+    c.fighters[1].state.guard_changed = true;
     combat_resolve_attacks(&c);
     assert(!c.fighters[0].state.has_sword);
     assert(c.ground_swords[0].active);

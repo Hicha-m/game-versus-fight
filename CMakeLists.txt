@@ -98,6 +98,12 @@ if (GAME_BUILD_TESTS)
 
     target_link_libraries(game_tests PRIVATE game_core)
 
+    add_executable(nidhogg_tests tests/test_nidhogg.c)
+    target_link_libraries(nidhogg_tests PRIVATE game_core)
+    add_test(NAME nidhogg_tests COMMAND nidhogg_tests)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/comparison-work)
+    set_tests_properties(nidhogg_tests PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/comparison-work)
+
     add_executable(audit_tests tests/test_audit.c)
     target_link_libraries(audit_tests PRIVATE game_core)
     add_test(NAME audit_tests COMMAND audit_tests)
@@ -114,12 +120,14 @@ if (GAME_BUILD_TESTS)
     add_test(NAME generation_tests COMMAND generation_tests)
     add_test(NAME game_tests COMMAND game_tests)
     add_test(NAME architecture_rules COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_architecture.sh)
-    set_tests_properties(audit_tests game_tests regression_tests generation_tests PROPERTIES
+    set_tests_properties(nidhogg_tests audit_tests game_tests regression_tests generation_tests PROPERTIES
         ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_RENDER_DRIVER=software;SDL_AUDIODRIVER=dummy" TIMEOUT 120)
     if(MSVC)
+        target_compile_options(nidhogg_tests PRIVATE /UNDEBUG)
         target_compile_options(audit_tests PRIVATE /UNDEBUG)
         target_compile_options(regression_tests PRIVATE /UNDEBUG)
     else()
+        target_compile_options(nidhogg_tests PRIVATE -UNDEBUG)
         target_compile_options(audit_tests PRIVATE -UNDEBUG)
         target_compile_options(regression_tests PRIVATE -UNDEBUG)
     endif()

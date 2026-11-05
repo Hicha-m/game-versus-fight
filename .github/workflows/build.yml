@@ -22,4 +22,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: audit-frame
-          path: build/audit-work/audit-frame.bmp
+          path: |
+            build/audit-work/audit-frame.bmp
+            build/comparison-work/*.bmp

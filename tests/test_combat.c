@@ -50,17 +50,19 @@ static int test_combat_step_sword_hit_does_not_end_round(void)
     setup_arena_and_combat(&arena, &combat);
 
     combat.fighters[0].state.pos.x = 100.0f;
-    combat.fighters[0].state.pos.y = 100.0f;
+    combat.fighters[0].state.pos.y = 592.0f;
     combat.fighters[0].state.facing_right = true;
 
     combat.fighters[1].state.pos.x = 124.0f;
-    combat.fighters[1].state.pos.y = 100.0f;
+    combat.fighters[1].state.pos.y = 592.0f;
     combat.fighters[1].state.facing_right = false;
 
+    combat.fighters[0].state.grounded = true;
+    combat.fighters[1].state.grounded = true;
     p1.thrust_pressed = true;
     p1.target_sword_line = SWORD_LINE_MID;
     p2.target_sword_line = SWORD_LINE_HIGH;
-    p2.set_sword_line = true;
+    combat.fighters[1].state.sword_line = SWORD_LINE_HIGH;
 
     combat_step(&combat, &arena, &p1, &p2, FIXED_DT);
     p1.thrust_pressed = false;
@@ -112,13 +114,15 @@ static int test_combat_step_matching_line_parries_attacker(void)
     setup_arena_and_combat(&arena, &combat);
 
     combat.fighters[0].state.pos.x = 100.0f;
-    combat.fighters[0].state.pos.y = 100.0f;
+    combat.fighters[0].state.pos.y = 592.0f;
     combat.fighters[0].state.facing_right = true;
 
     combat.fighters[1].state.pos.x = 124.0f;
-    combat.fighters[1].state.pos.y = 100.0f;
+    combat.fighters[1].state.pos.y = 592.0f;
     combat.fighters[1].state.facing_right = false;
 
+    combat.fighters[0].state.grounded = true;
+    combat.fighters[1].state.grounded = true;
     p1.thrust_pressed = true;
     p1.target_sword_line = SWORD_LINE_MID;
     p2.target_sword_line = SWORD_LINE_MID;
@@ -133,8 +137,8 @@ static int test_combat_step_matching_line_parries_attacker(void)
     }
 
     TEST_ASSERT_TRUE(!combat.round_over);
-    TEST_ASSERT_TRUE(combat.fighters[0].state.is_stunned);
-    TEST_ASSERT_TRUE(!combat.fighters[0].state.has_sword);
+    TEST_ASSERT_TRUE(!combat.fighters[0].state.is_stunned);
+    TEST_ASSERT_TRUE(combat.fighters[0].state.has_sword);
     TEST_ASSERT_TRUE(saw_parry);
     return 0;
 }

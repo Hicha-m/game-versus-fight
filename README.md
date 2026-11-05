@@ -25,7 +25,12 @@ cmake --build --preset run
 | Saut | Espace | Entrée |
 | Estoc / frappe | J | Ctrl droit |
 | Lancer | K | Maj droite |
-| Roulade | Bas + saut | Bas + saut |
+| Roulade | Bas + direction | Bas + direction |
+| Accroupissement / ramper | Maintenir bas | Maintenir bas |
+| Balayage | Bas + attaque | Bas + attaque |
+| Coup plongeant | Attaque en l’air | Attaque en l’air |
+| Lancer contextuel | Haut + attaque | Haut + attaque |
+| Saut mural | Saut contre un mur | Saut contre un mur |
 | Ramasser une épée proche | Bas | Bas |
 | Pause | Échap | Échap |
 
@@ -46,10 +51,12 @@ et affichée dans le HUD pour reproduire une partie.
 ## Règles
 
 Trois gardes : haute, médiane, basse. Une garde compatible face à une attaque
-pare et désarme l'attaquant. Les coups létaux simultanés peuvent tuer les deux
-combattants. À mains nues, une première frappe étourdit ; une autre frappe
-pendant cet étourdissement achève l'adversaire. Les épées désarmées ou tombées
-après un lancer peuvent être ramassées. Une roulade donne une brève esquive.
+bloque et repousse sans désarmer. Un changement de garde qui croise profondément
+la lame adverse désarme. Les coups létaux simultanés peuvent tuer les deux
+combattants. À mains nues, deux coups de poing rapprochés mettent au sol. Un balayage ou un
+coup plongeant y suffit en un coup. Approcher, s’abaisser et attaquer permet ensuite
+l’exécution. Les épées désarmées ou tombées
+après un lancer peuvent être ramassées. La roulade abaisse le corps sans donner d’invincibilité : une garde basse reste létale.
 
 La progression exige un combattant vivant ayant gagné l'avantage. Le coureur
 conserve son équipement au passage de salle ; le défenseur réapparaît après
@@ -64,7 +71,7 @@ cmake --build build-tests -j 8
 SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software ctest --test-dir build-tests --output-on-failure
 ```
 
-Cinq cibles : acceptation de l'audit, régressions de gameplay/configuration,
+Six cibles : comparaison Nidhogg, acceptation de l'audit, régressions de gameplay/configuration,
 génération, modules et architecture. L'acceptation vérifie les menus, l'audio,
 le rendu des animations et 132 couples graine/difficulté en traversée physique.
 Les assertions d'acceptation restent actives en compilation Release.
@@ -93,3 +100,10 @@ Les animations utilisent les sprites du dépôt. Ce projet reprend des mécaniqu
 Nidhogg ; ses timings, règles d'arbitrage et présentation restent ceux de Blade Rush.
 Voir [la clôture de l'audit](docs/validation.md) pour les preuves et les limites
 matérielles des vérifications, et [les dépendances](docs/dependance.md).
+
+## Comparaison documentée avec Nidhogg
+
+Voir [la comparaison sourcée, les différences et les captures](docs/nidhogg-comparison.md).
+Quatre thèmes jouables — Castle, Wilds, Mines, Clouds — sont sélectionnables avant
+la partie. Les modes procédural et corridor restent disponibles. Les épées lancées
+se déplacent horizontalement ; une séquence de course finale précède les statistiques.

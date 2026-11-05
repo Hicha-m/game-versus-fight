@@ -161,8 +161,8 @@ static void render_menu_pause(SDL_Renderer *renderer, const MenuContext *menu)
 
 static void render_menu_arena_mode(SDL_Renderer *renderer, const MenuContext *menu)
 {
-    const char *labels[] = {"DEFAULT", "PROCEDURAL", "CORRIDOR"};
-    i32 option_count = 3;
+    const char *labels[] = {"CASTLE", "WILDS", "MINES", "CLOUDS", "PROCEDURAL", "CORRIDOR"};
+    i32 option_count = 6;
     i32 selected = menu_get_selected_option(menu);
 
     render_menu_text(renderer, MENU_CENTER_X - 200.0f, 80.0f, "ARENA GENERATION MODE");

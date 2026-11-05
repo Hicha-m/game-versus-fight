@@ -226,6 +226,10 @@ static void physics_and_unarmed(void)
     assert(combat.fighters[1].state.alive && combat.fighters[1].state.is_stunned);
     combat.fighters[0].state.is_attacking = true;
     combat_resolve_attacks(&combat);
+    assert(combat.fighters[1].state.alive && combat.fighters[1].state.knocked_down);
+    combat.fighters[0].state.crouching = true;
+    combat.fighters[0].state.is_attacking = true;
+    combat_resolve_attacks(&combat);
     assert(!combat.fighters[1].state.alive);
     combat_reset_round(&combat, &arena);
     PlayerCommand roll = {.roll_pressed = true};

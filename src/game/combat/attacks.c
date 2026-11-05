@@ -48,10 +48,11 @@ f32 combat_sword_reach(const Fighter *fighter)
     if (!fighter->state.has_sword || !fighter->state.alive || fighter->state.is_stunned ||
         fighter->state.action == FIGHTER_ACTION_RUN ||
         fighter->state.action == FIGHTER_ACTION_ROLL ||
-        fighter->state.action == FIGHTER_ACTION_THROW)
+        fighter->state.action == FIGHTER_ACTION_THROW || !fighter->state.grounded ||
+        fighter->state.crouching || fighter->state.throw_ready)
         return 0;
     if (!fighter->state.is_attacking)
-        return SWORD_BODY_REACH_X;
+        return SWORD_BODY_REACH_X + (fighter->state.sword_line == SWORD_LINE_LOW ? 6.0f : 0);
     f32 ratio = fighter->state.action_duration > 0
                     ? fighter->state.action_time / fighter->state.action_duration
                     : 0.5f;
@@ -75,17 +76,7 @@ static bool attack_contact(const Fighter *fighter)
 
 static bool fighter_sword_is_lethal(const Fighter *fighter)
 {
-    if (!fighter || !fighter->state.alive || !fighter->state.has_sword || fighter->state.is_stunned)
-    {
-        return false;
-    }
-
-    if (fighter->state.action == FIGHTER_ACTION_RUN || fighter->state.action == FIGHTER_ACTION_ROLL)
-    {
-        return false;
-    }
-
-    return true;
+    return fighter && combat_sword_reach(fighter) > 0;
 }
 
 f32 combat_sword_y(const Fighter *fighter)
@@ -132,8 +123,9 @@ static bool sword_segment_hits_body(const Fighter *sword_owner, const Fighter *t
     }
 
     lane_y = combat_sword_y(sword_owner);
-    body_top = target->state.pos.y + 6.0f;
-    body_bottom = target->state.pos.y + PLAYER_HEIGHT - 6.0f;
+    RectF body = fighter_get_body_rect(target);
+    body_top = body.y + 3;
+    body_bottom = body.y + body.h - 3;
     if (lane_y < body_top || lane_y > body_bottom)
     {
         return false;
@@ -174,8 +166,9 @@ static void try_apply_running_impale(CombatState *combat, Fighter *runner,
         return;
     }
 
-    if (!runner->state.alive || runner->state.invincibility_timer > 0 ||
-        runner->state.action != FIGHTER_ACTION_RUN)
+    if (!runner->state.alive || runner->state.is_attacking ||
+        runner->state.invincibility_timer > 0 ||
+        (runner->state.grounded && fabsf(runner->state.vel.x) < 1 && !runner->state.crouching))
     {
         return;
     }
@@ -186,6 +179,7 @@ static void try_apply_running_impale(CombatState *combat, Fighter *runner,
     }
 
     moving_toward =
+        !runner->state.grounded ||
         (runner->state.vel.x > 0.0f && runner->state.pos.x < defender_with_sword->state.pos.x) ||
         (runner->state.vel.x < 0.0f && runner->state.pos.x > defender_with_sword->state.pos.x);
     if (!moving_toward)
@@ -193,7 +187,11 @@ static void try_apply_running_impale(CombatState *combat, Fighter *runner,
         return;
     }
 
-    impale_reach = SWORD_BODY_REACH_X;
+    if (fighter_sword_is_lethal(runner) &&
+        fabsf(combat_sword_y(runner) - combat_sword_y(defender_with_sword)) < 6 &&
+        runner->state.facing_right != defender_with_sword->state.facing_right)
+        return;
+    impale_reach = combat_sword_reach(defender_with_sword);
     if (!sword_segment_hits_body(defender_with_sword, runner, impale_reach))
     {
         return;
@@ -220,7 +218,9 @@ bool fighters_in_attack_range(const Fighter *attacker, const Fighter *defender, 
 static void apply_parry_or_hit(CombatState *combat, Fighter *attacker, Fighter *defender,
                                i32 attacker_index, i32 defender_index)
 {
-    bool attacker_armed = fighter_sword_is_lethal(attacker);
+    bool special = attacker->state.action == FIGHTER_ACTION_SWEEP ||
+                   attacker->state.action == FIGHTER_ACTION_DIVE_KICK;
+    bool attacker_armed = !special && fighter_sword_is_lethal(attacker);
     bool defender_has_matching_sword =
         fighter_sword_is_lethal(defender) &&
         fabsf(combat_sword_y(defender) - combat_sword_y(attacker)) <= 6.0f &&
@@ -238,17 +238,11 @@ static void apply_parry_or_hit(CombatState *combat, Fighter *attacker, Fighter *
     {
         if (defender_has_matching_sword)
         {
-            combat_drop_sword(combat, attacker->state.pos);
-            combat_emit(combat, COMBAT_EVENT_DISARM, defender_index, attacker_index);
-            attacker->state.has_sword = false;
+            /* A static same-height guard blocks; only a fresh blade crossing disarms. */
             attacker->state.is_attacking = false;
-            attacker->state.is_stunned = true;
-            attacker->state.stun_timer = DEFAULT_STUN_DURATION * PARRY_STUN_MULTIPLIER;
-            attacker->state.action = FIGHTER_ACTION_STUN;
-            attacker->state.vel.x = attacker->state.facing_right
-                                        ? -(attacker->stats.move_speed * PARRY_KNOCKBACK_MULTIPLIER)
-                                        : (attacker->stats.move_speed * PARRY_KNOCKBACK_MULTIPLIER);
-            attacker->state.vel.y = PARRY_VERTICAL_RECOIL;
+            attacker->state.vel.x = attacker->state.facing_right ? -90.0f : 90.0f;
+            defender->state.vel.x = -attacker->state.vel.x;
+            combat_emit(combat, COMBAT_EVENT_PARRY, defender_index, attacker_index);
             defender->state.is_parrying = true;
         }
         else
@@ -260,23 +254,35 @@ static void apply_parry_or_hit(CombatState *combat, Fighter *attacker, Fighter *
     }
     else
     {
-        if (defender->state.is_stunned)
+        if (defender->state.knocked_down)
         {
-            defender->state.alive = false;
-            defender->state.action = FIGHTER_ACTION_DEAD;
-            combat_record_kill(combat, attacker_index, defender_index, true);
+            if (attacker->state.crouching ||
+                fabsf(attacker->state.pos.x - defender->state.pos.x) < 24)
+                combat_record_kill(combat, attacker_index, defender_index, true);
+            attacker->state.is_attacking = false;
             return;
         }
+        if (defender->state.has_sword)
+        {
+            combat_drop_sword(combat, defender->state.pos);
+            defender->state.has_sword = false;
+            combat_emit(combat, COMBAT_EVENT_DISARM, attacker_index, defender_index);
+        }
+        defender->state.punch_hits++;
+        defender->state.punch_timer = 0.8f;
+        defender->state.knocked_down = special || defender->state.punch_hits >= 2;
         defender->state.is_stunned = true;
-        defender->state.stun_timer = DEFAULT_STUN_DURATION * 2.0f;
+        defender->state.is_attacking = false;
+        defender->state.stun_timer = defender->state.knocked_down ? 0.7f : 0.16f;
+        defender->state.action =
+            defender->state.knocked_down ? FIGHTER_ACTION_KNOCKED_DOWN : FIGHTER_ACTION_STUN;
+        defender->state.vel.x = attacker->state.facing_right ? 120 : -120;
         attacker->state.is_attacking = false;
-        defender->state.action = FIGHTER_ACTION_STUN;
     }
 }
 
-void combat_resolve_thrown_sword_hits(CombatState *combat)
+static void resolve_projectile_hits(CombatState *combat, ThrownSword *sword)
 {
-    ThrownSword *sword;
     i32 i;
 
     if (!combat)
@@ -284,7 +290,6 @@ void combat_resolve_thrown_sword_hits(CombatState *combat)
         return;
     }
 
-    sword = &combat->thrown_sword;
     if (!sword->active)
     {
         return;
@@ -305,7 +310,7 @@ void combat_resolve_thrown_sword_hits(CombatState *combat)
         bool defender_parry;
         i32 attacker_index;
 
-        if (i == sword->owner_index)
+        if (i == sword->owner_index && sword->age < 0.12f)
         {
             continue;
         }
@@ -321,10 +326,11 @@ void combat_resolve_thrown_sword_hits(CombatState *combat)
         proj_x1 = proj_x0 + THROW_PROJECTILE_WIDTH;
         proj_y1 = proj_y0 + THROW_PROJECTILE_HEIGHT;
 
-        body_x0 = target->state.pos.x;
-        body_y0 = target->state.pos.y;
-        body_x1 = body_x0 + PLAYER_WIDTH;
-        body_y1 = body_y0 + PLAYER_HEIGHT;
+        RectF body = fighter_get_body_rect(target);
+        body_x0 = body.x;
+        body_y0 = body.y;
+        body_x1 = body_x0 + body.w;
+        body_y1 = body_y0 + body.h;
 
         overlap =
             !(proj_x1 < body_x0 || body_x1 < proj_x0 || proj_y1 < body_y0 || body_y1 < proj_y0);
@@ -334,11 +340,14 @@ void combat_resolve_thrown_sword_hits(CombatState *combat)
         }
 
         defender_parry = fighter_sword_is_lethal(target) &&
-                         target->state.sword_line == sword->line &&
+                         target->state.sword_line != SWORD_LINE_LOW &&
+                         fabsf(combat_sword_y(target) - sword->pos.y) <= 24 &&
                          (target->state.facing_right ? sword->vel.x < 0 : sword->vel.x > 0);
         if (defender_parry)
         {
             target->state.is_parrying = true;
+            combat_drop_sword(combat, (Vec2){sword->pos.x, sword->pos.y - PLAYER_HEIGHT});
+            combat_emit(combat, COMBAT_EVENT_PARRY, i, sword->owner_index);
             sword->active = false;
             return;
         }
@@ -357,11 +366,42 @@ void combat_resolve_thrown_sword_hits(CombatState *combat)
     }
 }
 
+void combat_resolve_thrown_sword_hits(CombatState *combat)
+{
+    if (!combat)
+        return;
+    resolve_projectile_hits(combat, &combat->thrown_sword);
+    resolve_projectile_hits(combat, &combat->second_thrown_sword);
+}
+
+static bool guard_crossing(const Fighter *actor, const Fighter *target)
+{
+    if (!actor->state.guard_changed || !fighter_sword_is_lethal(actor) ||
+        !fighter_sword_is_lethal(target))
+        return false;
+    if (actor->state.facing_right == target->state.facing_right ||
+        fabsf(combat_sword_y(actor) - combat_sword_y(target)) > 6)
+        return false;
+    f32 separation = fabsf(actor->state.pos.x - target->state.pos.x) - PLAYER_WIDTH;
+    return separation >= 0 &&
+           separation < combat_sword_reach(actor) + combat_sword_reach(target) - 12;
+}
+
 void combat_resolve_attacks(CombatState *combat)
 {
     Fighter *p1 = &combat->fighters[0];
     Fighter *p2 = &combat->fighters[1];
 
+    bool crossing[2] = {guard_crossing(p1, p2), guard_crossing(p2, p1)};
+    if (crossing[0] != crossing[1])
+    {
+        i32 actor = crossing[0] ? 0 : 1, target = 1 - actor;
+        combat_drop_sword(combat, combat->fighters[target].state.pos);
+        combat->fighters[target].state.has_sword = false;
+        combat->fighters[target].state.is_attacking = false;
+        combat_emit(combat, COMBAT_EVENT_DISARM, actor, target);
+        return;
+    }
     if (p1->state.alive && p2->state.alive)
     {
         try_apply_running_impale(combat, p1, p2, 0, 1);

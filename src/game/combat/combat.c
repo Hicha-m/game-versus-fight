@@ -38,9 +38,10 @@ void combat_try_spawn_throw(CombatState *combat, i32 fighter_index, const Player
     }
 
     fighter = &combat->fighters[fighter_index];
-    thrown = &combat->thrown_sword;
+    thrown = fighter_index == 0 ? &combat->thrown_sword : &combat->second_thrown_sword;
 
-    if (!cmd->throw_pressed || thrown->active)
+    bool contextual_throw = cmd->thrust_pressed && fighter->state.throw_ready;
+    if ((!cmd->throw_pressed && !contextual_throw) || thrown->active)
     {
         return;
     }
@@ -56,24 +57,14 @@ void combat_try_spawn_throw(CombatState *combat, i32 fighter_index, const Player
     spawn_y = fighter_sword_line_world_y(fighter);
 
     thrown->active = true;
+    thrown->age = 0;
     thrown->owner_index = fighter_index;
     thrown->line = fighter->state.sword_line;
     thrown->pos.x = spawn_x;
     thrown->pos.y = spawn_y;
     thrown->vel.x =
         fighter->state.facing_right ? THROW_PROJECTILE_SPEED_X : -THROW_PROJECTILE_SPEED_X;
-    if (fighter->state.sword_line == SWORD_LINE_HIGH)
-    {
-        thrown->vel.y = THROW_PROJECTILE_SPEED_Y_HIGH;
-    }
-    else if (fighter->state.sword_line == SWORD_LINE_LOW)
-    {
-        thrown->vel.y = THROW_PROJECTILE_SPEED_Y_LOW;
-    }
-    else
-    {
-        thrown->vel.y = THROW_PROJECTILE_SPEED_Y_MID;
-    }
+    thrown->vel.y = 0;
     thrown->lifetime = THROW_PROJECTILE_LIFETIME;
     thrown->rotation_deg = fighter->state.facing_right ? 0.0f : 180.0f;
 
@@ -135,7 +126,7 @@ static void combat_update_respawns(CombatState *combat, const Room *room, f32 dt
         if (combat->runner_index >= 0 && combat->runner_index != i)
         {
             i32 runner = combat->runner_index;
-            f32 x = combat->fighters[runner].state.pos.x + (runner == 0 ? 360.0f : -360.0f);
+            f32 x = combat->fighters[runner].state.pos.x + (runner == 0 ? 220.0f : -220.0f);
             x = fmaxf(32, fminf(x, room->width_tiles * TILE_SIZE - PLAYER_WIDTH - 32));
             combat_safe_spawn(room, x, &fighter->state.pos);
             fighter->state.facing_right = runner != 0;
@@ -175,20 +166,21 @@ static void combat_check_camera_distance_kill(CombatState *combat, Arena *arena)
     Fighter *trailing = &combat->fighters[1 - runner];
     if (!leading->state.alive || !trailing->state.alive)
         return;
-    f32 maximum = fmaxf(0, room->width_tiles * TILE_SIZE - WINDOW_WIDTH);
-    f32 left = fminf(maximum, fmaxf(0, leading->state.pos.x + PLAYER_WIDTH / 2 - WINDOW_WIDTH / 2));
+    f32 maximum = fmaxf(0, room->width_tiles * TILE_SIZE - WINDOW_WIDTH / 2);
+    f32 left = fminf(maximum, fmaxf(0, leading->state.pos.x + PLAYER_WIDTH / 2 - WINDOW_WIDTH / 4));
     bool behind = runner == 0 ? trailing->state.pos.x + PLAYER_WIDTH < left - 64
-                              : trailing->state.pos.x > left + WINDOW_WIDTH + 64;
+                              : trailing->state.pos.x > left + WINDOW_WIDTH / 2 + 64;
     if (behind)
         combat_record_kill(combat, -1, 1 - runner, false);
 }
 
 static void fighter_reset_runtime(Fighter *fighter)
 {
+    memset(&fighter->state, 0, sizeof(fighter->state));
     fighter->state.animation_time = 0;
     fighter->state.vel.x = 0.0f;
     fighter->state.vel.y = 0.0f;
-    fighter->state.grounded = false;
+    fighter->state.grounded = true;
     fighter->state.facing_right = true;
 
     fighter->state.has_sword = true;
@@ -260,6 +252,7 @@ void combat_reset_round(CombatState *combat, const Arena *arena)
     combat->kill_counts_for_progress = false;
     combat->kill_attacker_timer = 0.0f;
     combat->thrown_sword.active = false;
+    combat->second_thrown_sword.active = false;
     combat->thrown_sword.owner_index = -1;
     combat->thrown_sword.lifetime = 0.0f;
     combat->thrown_sword.rotation_deg = 0.0f;
@@ -379,7 +372,8 @@ void combat_step(CombatState *combat, Arena *arena, const PlayerCommand *p1_cmd,
             Fighter *f = &combat->fighters[j];
             const PlayerCommand *cmd = j == 0 ? p1_cmd : p2_cmd;
             if (f->state.alive && !f->state.has_sword && !f->state.is_stunned &&
-                cmd->down_pressed && fabsf(f->state.pos.x - sword->pos.x) < 32 &&
+                (cmd->down_pressed || cmd->crouch_held || f->state.action == FIGHTER_ACTION_ROLL) &&
+                fabsf(f->state.pos.x - sword->pos.x) < 32 &&
                 fabsf(f->state.pos.y - sword->pos.y) < 48)
             {
                 f->state.has_sword = true;

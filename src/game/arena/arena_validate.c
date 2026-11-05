@@ -133,7 +133,7 @@ bool room_validate_spawns(const Room *room)
             }
         i32 feet = (i32)floorf((p.y + PLAYER_HEIGHT + 0.01f) / TILE_SIZE);
         TileType support = room_get_tile(room, x0, feet);
-        if (support != TILE_SOLID && support != TILE_PLATFORM)
+        if (support != TILE_SOLID && support != TILE_PLATFORM && support != TILE_CLOUD)
             return false;
     }
     return fabsf(spawns[0].x - spawns[1].x) >= PLAYER_WIDTH ||

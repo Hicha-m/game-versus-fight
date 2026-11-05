@@ -431,7 +431,7 @@ static void menu_update_pause(MenuContext *menu, const FrameInput *input)
 
 static void menu_update_arena_mode(MenuContext *menu, const FrameInput *input)
 {
-    i32 option_count = 3;
+    i32 option_count = 6;
 
     if (input->players[0].actions[ACTION_DOWN].pressed)
     {
@@ -442,7 +442,11 @@ static void menu_update_arena_mode(MenuContext *menu, const FrameInput *input)
         menu->selected_option = (menu->selected_option - 1 + option_count) % option_count;
     }
 
-    menu->arena_options.mode = (ArenaGenerationMode)menu->selected_option;
+    menu->arena_options.mode = menu->selected_option < 4    ? ARENA_MODE_DEFAULT
+                               : menu->selected_option == 4 ? ARENA_MODE_PROCEDURAL
+                                                            : ARENA_MODE_CORRIDOR;
+    if (menu->selected_option < 4)
+        menu->arena_options.theme = (ArenaTheme)menu->selected_option;
 
     if (input->players[0].actions[ACTION_JUMP].pressed ||
         input->players[0].actions[ACTION_THRUST].pressed)

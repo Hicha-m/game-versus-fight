@@ -94,7 +94,7 @@ static void room_setup_base(Room *room, RoomType type, RoomDirection direction, 
     room->spawns.attacker_spawn.y = (f32)((ROOM_HEIGHT_TILES - 2) * TILE_SIZE) - PLAYER_HEIGHT;
 
     room->spawns.defender_spawn.x =
-        (f32)(((width_tiles - 5) < 32 ? width_tiles - 5 : 32) * TILE_SIZE);
+        (f32)(((width_tiles - 5) < 18 ? width_tiles - 5 : 18) * TILE_SIZE);
     room->spawns.defender_spawn.y = (f32)((ROOM_HEIGHT_TILES - 2) * TILE_SIZE) - PLAYER_HEIGHT;
 }
 
@@ -187,38 +187,69 @@ void arena_generate_corridor(Arena *arena, u32 seed)
 
 bool arena_init_with_options(Arena *arena, const ArenaOptions *options)
 {
-    if (!arena || !options)
-    {
+    if (!arena || !options || options->theme < ARENA_THEME_CASTLE ||
+        options->theme > ARENA_THEME_CLOUDS || !arena_init(arena))
         return false;
-    }
-
-    if (!arena_init(arena))
-    {
-        return false;
-    }
-
     switch (options->mode)
     {
     case ARENA_MODE_DEFAULT:
-
         arena_build_default(arena);
-        return true;
-
+        for (i32 i = 0; i < ROOM_COUNT; i++)
+        {
+            Room *room = &arena->rooms[i];
+            room_setup_base(room, (RoomType)i,
+                            i < 3 ? ROOM_DIR_LEFT_TO_RIGHT : ROOM_DIR_RIGHT_TO_LEFT, 20);
+            room->spawns.attacker_spawn.x = room->width_tiles * TILE_SIZE * 0.40f;
+            room->spawns.defender_spawn.x = room->width_tiles * TILE_SIZE * 0.60f;
+            if (options->theme == ARENA_THEME_CASTLE)
+            {
+                for (i32 x = 7; x <= 12; x++)
+                    room->tiles[17][x] = TILE_SOLID;
+                room_build_platform(room, 17, 3, 5);
+                room_build_platform(room, 14, 14, 17);
+            }
+            else if (options->theme == ARENA_THEME_WILDS)
+            {
+                room_build_platform(room, 17, 5, 8);
+                room_build_platform(room, 14, 12, 15);
+                if (i != 2)
+                    for (i32 x = 10; x < 12; x++)
+                        for (i32 y = 20; y < ROOM_HEIGHT_TILES; y++)
+                            room->tiles[y][x] = TILE_EMPTY;
+            }
+            else if (options->theme == ARENA_THEME_MINES)
+            {
+                for (i32 y = 18; y < 20; y++)
+                {
+                    room->tiles[y][5] = TILE_SOLID;
+                    room->tiles[y][14] = TILE_SOLID;
+                }
+                room_build_platform(room, 17, 9, 11);
+            }
+            else
+            {
+                for (i32 x = 0; x < room->width_tiles; x++)
+                {
+                    room->tiles[20][x] = TILE_CLOUD;
+                    room->tiles[21][x] = TILE_EMPTY;
+                }
+                room_build_platform(room, 17, 5, 8);
+                room_build_platform(room, 14, 12, 15);
+            }
+        }
+        break;
     case ARENA_MODE_PROCEDURAL:
-
         arena_generate_next(arena, options->seed, options->difficulty);
-        return true;
-
+        break;
     case ARENA_MODE_CORRIDOR:
-
         arena_generate_corridor(arena, options->seed);
-        return true;
-
+        break;
     default:
-
-        arena_build_default(arena);
-        return true;
+        return false;
     }
+    for (i32 i = 0; i < arena->room_count; i++)
+        arena->rooms[i].theme = options->theme;
+    return true;
 }
 
 ArenaOptions arena_options_default(void)

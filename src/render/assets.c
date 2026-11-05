@@ -7,7 +7,7 @@
 
 #define PATH_BUFFER_SIZE 512
 
-#define ANIMATION_COUNT 13
+#define ANIMATION_COUNT 18
 #define ANIMATION_FRAMES 32
 static SDL_Texture *animations[ANIMATION_COUNT][ANIMATION_FRAMES];
 static i32 animation_counts[ANIMATION_COUNT];
@@ -64,7 +64,10 @@ static SDL_Texture *load_texture_from_path(const char *path)
         return NULL;
 
 #if GAME_HAS_SDL3_IMAGE
-    return IMG_LoadTexture(s_renderer, path);
+    SDL_Texture *texture = IMG_LoadTexture(s_renderer, path);
+    if (texture)
+        SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
+    return texture;
 #else
     SDL_Surface *surface = SDL_LoadBMP(path);
     if (surface == NULL)
@@ -72,6 +75,8 @@ static SDL_Texture *load_texture_from_path(const char *path)
 
     SDL_Texture *texture = SDL_CreateTextureFromSurface(s_renderer, surface);
     SDL_DestroySurface(surface);
+    if (texture)
+        SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
     return texture;
 #endif
 }
@@ -116,7 +121,12 @@ GameError assets_init(SDL_Renderer *renderer)
                                   "sManDeadFall",
                                   "sManThrowStanding",
                                   "sManSwordStandHi",
-                                  "sManSwordStandLo"};
+                                  "sManSwordStandLo",
+                                  "sManCrawl",
+                                  "sManDiveKick",
+                                  "sManSweepTheLeg",
+                                  "sManCollapse",
+                                  "sManSlideDownWall"};
     for (i32 a = 0; a < ANIMATION_COUNT; a++)
         for (i32 frame = 0; frame < ANIMATION_FRAMES; frame++)
         {

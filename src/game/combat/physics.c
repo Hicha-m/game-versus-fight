@@ -2,15 +2,15 @@
 #include "utils/utils.h"
 #include <math.h>
 
-void combat_update_thrown_sword_physics(CombatState *combat, const Room *room, f32 dt)
+static void update_projectile(CombatState *combat, const Room *room, ThrownSword *sword, f32 dt)
 {
     if (!combat || !room || dt <= 0)
         return;
-    ThrownSword *sword = &combat->thrown_sword;
     if (!sword->active)
         return;
-    sword->lifetime -= dt;
-    sword->vel.y += THROW_PROJECTILE_GRAVITY * dt;
+    sword->age += dt;
+    /* A thrown rapier travels level until contact, as in the reference game. */
+
     sword->rotation_deg += (sword->vel.x >= 0 ? 1 : -1) * THROW_PROJECTILE_SPIN_DPS * dt;
     i32 steps = (i32)ceilf(fmaxf(fabsf(sword->vel.x * dt), fabsf(sword->vel.y * dt)) / 4);
     if (steps < 1)
@@ -30,7 +30,7 @@ void combat_update_thrown_sword_physics(CombatState *combat, const Room *room, f
             sword->active = false;
             return;
         }
-        if (tile == TILE_SOLID || platform || outside || sword->lifetime <= 0)
+        if (tile == TILE_SOLID || platform || outside)
         {
             Vec2 dropped = {clampf(before.x, 0, room->width_tiles * TILE_SIZE - PLAYER_WIDTH),
                             fmaxf(0, before.y) - PLAYER_HEIGHT};
@@ -39,6 +39,14 @@ void combat_update_thrown_sword_physics(CombatState *combat, const Room *room, f
             return;
         }
     }
+}
+
+void combat_update_thrown_sword_physics(CombatState *combat, const Room *room, f32 dt)
+{
+    if (!combat)
+        return;
+    update_projectile(combat, room, &combat->thrown_sword, dt);
+    update_projectile(combat, room, &combat->second_thrown_sword, dt);
 }
 
 void fighter_apply_gravity(Fighter *fighter, f32 dt)
@@ -74,15 +82,20 @@ void fighter_integrate_velocity(Fighter *fighter, f32 dt)
     fighter->state.pos.y += fighter->state.vel.y * dt;
 }
 
-static bool body_hits(const Room *room, f32 x, f32 y)
+static bool body_hits_shape(const Room *room, f32 x, f32 y, f32 height)
 {
     i32 x0 = (i32)floorf(x / TILE_SIZE), x1 = (i32)floorf((x + PLAYER_WIDTH - 0.01f) / TILE_SIZE);
-    i32 y0 = (i32)floorf(y / TILE_SIZE), y1 = (i32)floorf((y + PLAYER_HEIGHT - 0.01f) / TILE_SIZE);
+    i32 y0 = (i32)floorf(y / TILE_SIZE), y1 = (i32)floorf((y + height - 0.01f) / TILE_SIZE);
     for (i32 ty = y0; ty <= y1; ty++)
         for (i32 tx = x0; tx <= x1; tx++)
             if (room_get_tile(room, tx, ty) == TILE_SOLID)
                 return true;
     return false;
+}
+
+static bool body_hits(const Room *room, f32 x, f32 y)
+{
+    return body_hits_shape(room, x, y, PLAYER_HEIGHT);
 }
 
 void fighter_resolve_world_collision(Fighter *f, const Room *room, f32 dt)
@@ -91,6 +104,12 @@ void fighter_resolve_world_collision(Fighter *f, const Room *room, f32 dt)
         return;
     f32 dx = f->state.vel.x * dt, dy = f->state.vel.y * dt;
     f32 x = f->state.pos.x - dx, y = f->state.pos.y - dy;
+    if (body_hits(room, x, y) &&
+        !body_hits_shape(room, x, y + PLAYER_HEIGHT / 2, PLAYER_HEIGHT / 2))
+        f->state.crouching = true;
+    f32 offset = fighter_get_body_rect(f).y - f->state.pos.y;
+    f32 height = PLAYER_HEIGHT - offset;
+    f->state.wall_direction = 0;
     i32 steps = (i32)ceilf(fmaxf(fabsf(dx), fabsf(dy)) / 4.0f);
     if (steps < 1)
         steps = 1;
@@ -98,10 +117,11 @@ void fighter_resolve_world_collision(Fighter *f, const Room *room, f32 dt)
     for (i32 i = 0; i < steps; i++)
     {
         f32 nx = x + dx / steps;
-        if (!body_hits(room, nx, y))
+        if (!body_hits_shape(room, nx, y + offset, height))
             x = nx;
         else
         {
+            f->state.wall_direction = dx > 0 ? 1 : -1;
             dx = 0;
             f->state.vel.x = 0;
         }
@@ -114,7 +134,7 @@ void fighter_resolve_world_collision(Fighter *f, const Room *room, f32 dt)
                  tx <= (i32)floorf((x + PLAYER_WIDTH - 0.01f) / TILE_SIZE); tx++)
             {
                 TileType t = room_get_tile(room, tx, row);
-                if ((t == TILE_PLATFORM || t == TILE_SOLID) &&
+                if ((t == TILE_PLATFORM || t == TILE_CLOUD || t == TILE_SOLID) &&
                     y + PLAYER_HEIGHT <= row * TILE_SIZE + 0.01f &&
                     ny + PLAYER_HEIGHT >= row * TILE_SIZE)
                 {
@@ -123,7 +143,7 @@ void fighter_resolve_world_collision(Fighter *f, const Room *room, f32 dt)
                 }
             }
         }
-        if (platform || body_hits(room, x, ny))
+        if (platform || body_hits_shape(room, x, ny + offset, height))
         {
             if (dy >= 0)
                 grounded = true;
@@ -138,6 +158,8 @@ void fighter_resolve_world_collision(Fighter *f, const Room *room, f32 dt)
     f->state.pos.x = clampf(x, 0, room->width_tiles * TILE_SIZE - PLAYER_WIDTH);
     f->state.pos.y = y;
     f->state.grounded = grounded;
+    if (!grounded && f->state.wall_direction && f->state.wall_jump_lock <= 0)
+        f->state.vel.y = f->state.climbing ? -140.0f : fminf(f->state.vel.y, 120.0f);
     if (grounded)
         f->state.coyote_time = DEFAULT_COYOTE_TIME;
     for (i32 ty = (i32)floorf(y / TILE_SIZE);
@@ -219,7 +241,7 @@ bool combat_safe_spawn(const Room *room, f32 desired_x, Vec2 *out)
             {
                 TileType floor = room_get_tile(room, x, row);
                 Vec2 pos = {(f32)(x * TILE_SIZE), (f32)(row * TILE_SIZE) - PLAYER_HEIGHT};
-                if ((floor == TILE_SOLID || floor == TILE_PLATFORM) &&
+                if ((floor == TILE_SOLID || floor == TILE_PLATFORM || floor == TILE_CLOUD) &&
                     !body_hits(room, pos.x, pos.y))
                 {
                     bool hazard = false;

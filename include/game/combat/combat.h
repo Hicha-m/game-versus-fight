@@ -24,7 +24,12 @@ typedef enum FighterAction
     FIGHTER_ACTION_THROW,
     FIGHTER_ACTION_ROLL,
     FIGHTER_ACTION_STUN,
-    FIGHTER_ACTION_DEAD
+    FIGHTER_ACTION_DEAD,
+    FIGHTER_ACTION_CROUCH,
+    FIGHTER_ACTION_DIVE_KICK,
+    FIGHTER_ACTION_SWEEP,
+    FIGHTER_ACTION_KNOCKED_DOWN,
+    FIGHTER_ACTION_WALL_SLIDE
 } FighterAction;
 
 typedef enum ControllerType
@@ -45,6 +50,8 @@ typedef struct PlayerCommand
     bool throw_pressed;
     SwordLine target_sword_line;
     bool set_sword_line;
+    bool crouch_held;
+    bool up_held;
 } PlayerCommand;
 
 typedef struct FighterStats
@@ -63,6 +70,17 @@ typedef struct FighterController
 typedef struct FighterState
 {
 
+    f32 up_hold_time;
+    f32 crouch_hold_time;
+    bool crouching;
+    bool guard_changed;
+    bool throw_ready;
+    bool knocked_down;
+    i32 punch_hits;
+    f32 punch_timer;
+    i32 wall_direction;
+    bool climbing;
+    f32 wall_jump_lock;
     f32 animation_time;
     Vec2 pos;
     Vec2 vel;
@@ -100,6 +118,7 @@ typedef struct Fighter
 typedef struct ThrownSword
 {
     bool active;
+    f32 age;
     i32 owner_index;
     SwordLine line;
     Vec2 pos;
@@ -138,6 +157,7 @@ typedef struct CombatState
     Fighter fighters[MAX_PLAYERS];
     f32 respawn_timers[MAX_PLAYERS];
     ThrownSword thrown_sword;
+    ThrownSword second_thrown_sword;
 
     bool kill_happened;
     i32 kill_attacker_index;

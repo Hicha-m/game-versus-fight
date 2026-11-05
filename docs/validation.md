@@ -1,4 +1,8 @@
-# Suivi de l'audit — clôture des corrections
+# Suivi de l'audit — corrections techniques
+
+**Mise à jour :** les choix de gameplay de ce premier audit ont ensuite été confrontés
+à des sources sur Nidhogg. La [comparaison sourcée](nidhogg-comparison.md) remplace
+les anciennes règles de parade, roulade, attaque aérienne et exécution ci-dessous.
 
 Les 15 constats ont une correction implémentée. « Vérifié » signifie que les
 contrôles indiqués passent, pas que le jeu reproduit exactement le ressenti de
@@ -45,7 +49,7 @@ Nidhogg. La règle choisie pour deux coups létaux simultanés est la double mor
 
 ## Vérifications locales
 
-Cinq cibles : `audit_tests`, `regression_tests`, `generation_tests`, `game_tests`,
+Six cibles : `nidhogg_tests`, `audit_tests`, `regression_tests`, `generation_tests`, `game_tests`,
 `architecture_rules`. Elles passent en Debug, Release et sous ASan/UBSan sur Linux,
 en mode dummy pour la vidéo et l'audio.
 `audit_tests` ne saute pas silencieusement une absence de renderer/audio : elle échoue.

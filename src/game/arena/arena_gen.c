@@ -139,7 +139,7 @@ static void room_set_camera_safe_spawns(Room *room)
         return;
     }
 
-    camera_tiles = WINDOW_WIDTH / TILE_SIZE;
+    camera_tiles = WINDOW_WIDTH / (2 * TILE_SIZE);
     left_spawn_tx = 4;
     right_spawn_tx = left_spawn_tx + (camera_tiles - 12);
     right_spawn_tx = clamp_i32(right_spawn_tx, left_spawn_tx + 8, room->width_tiles - 6);
@@ -425,7 +425,7 @@ static void gen_room_setup_base(Room *room, RoomType type, RoomDirection directi
     room->transition.left_trigger_x = 12.0f;
     room->transition.right_trigger_x = (f32)(width_tiles * TILE_SIZE - 12);
 
-    camera_tiles = WINDOW_WIDTH / TILE_SIZE;
+    camera_tiles = WINDOW_WIDTH / (2 * TILE_SIZE);
 
     room->spawns.attacker_spawn.x = 4.0f * TILE_SIZE;
     room->spawns.attacker_spawn.y = (f32)((ROOM_HEIGHT_TILES - 3) * TILE_SIZE) - PLAYER_HEIGHT;

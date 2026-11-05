@@ -34,6 +34,7 @@ typedef struct Game
 
     i32 room_push_direction;
     i32 victory_winner_index;
+    f32 victory_time;
 } Game;
 
 bool game_init(Game *game);

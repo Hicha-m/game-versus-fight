@@ -11,6 +11,7 @@ void game_start_match(Game *game)
     arena_set_middle_room(&game->arena);
     memset(&game->match_stats, 0, sizeof(game->match_stats));
     game->victory_winner_index = -1;
+    game->victory_time = 0;
     game->room_push_direction = 0;
     game->phase = GAME_PHASE_MATCH;
     combat_reset_round(&game->combat, &game->arena);
@@ -43,6 +44,7 @@ bool game_regenerate_arena(Game *game)
             !combat_room_traversable(&game->arena.rooms[i]))
         {
             game->arena.rooms[i] = fallback.rooms[i];
+            game->arena.rooms[i].theme = game->arena_options.theme;
             if (!room_validate_spawns(&game->arena.rooms[i]) ||
                 !combat_room_traversable(&game->arena.rooms[i]))
                 return false;
@@ -136,7 +138,15 @@ void game_build_player_command_from_input(PlayerCommand *out_cmd, const PlayerIn
     out_cmd->jump_pressed = input->actions[ACTION_JUMP].pressed;
     out_cmd->thrust_pressed = input->actions[ACTION_THRUST].pressed;
     out_cmd->throw_pressed = input->actions[ACTION_THROW].pressed;
-    out_cmd->roll_pressed = input->actions[ACTION_DOWN].down && input->actions[ACTION_JUMP].pressed;
+    out_cmd->crouch_held = input->actions[ACTION_DOWN].down;
+    out_cmd->up_held = input->actions[ACTION_UP].down;
+    out_cmd->roll_pressed =
+        input->actions[ACTION_DOWN].pressed && (out_cmd->right_pressed || out_cmd->left_pressed);
+    if (out_cmd->up_held && out_cmd->thrust_pressed)
+    {
+        out_cmd->throw_pressed = true;
+        out_cmd->thrust_pressed = false;
+    }
     if (out_cmd->roll_pressed)
         out_cmd->jump_pressed = false;
     out_cmd->target_sword_line = SWORD_LINE_MID;
@@ -224,6 +234,7 @@ void game_handle_room_transitions(Game *game)
         if (defender_was_alive)
             game->combat.respawn_timers[1 - runner] = 0.0f;
         game->combat.thrown_sword.active = false;
+        game->combat.second_thrown_sword.active = false;
         memset(game->combat.ground_swords, 0, sizeof(game->combat.ground_swords));
     }
 }
@@ -427,6 +438,9 @@ void game_update(Game *game, const FrameInput *input, f32 dt)
 
     if (game->phase == GAME_PHASE_VICTORY)
     {
+        game->victory_time += dt;
+        if (game->victory_time < 4.0f)
+            return;
 
         if (input->players[0].actions[ACTION_THRUST].pressed ||
             input->players[1].actions[ACTION_THRUST].pressed || input->pause.pressed)
@@ -453,6 +467,22 @@ void game_update(Game *game, const FrameInput *input, f32 dt)
 
     game_collect_commands(game, input, &p1_cmd, &p2_cmd, dt);
 
+    Room *active_room = arena_get_current_room(&game->arena);
+    for (i32 i = 0; i < MAX_PLAYERS; i++)
+    {
+        FighterState *f = &game->combat.fighters[i].state;
+        if (!f->alive || !f->grounded)
+            continue;
+        i32 x = (i32)((f->pos.x + PLAYER_WIDTH / 2) / TILE_SIZE),
+            y = (i32)((f->pos.y + PLAYER_HEIGHT + 1) / TILE_SIZE);
+        if (active_room && x >= 0 && x < active_room->width_tiles &&
+            room_get_tile(active_room, x, y) == TILE_CLOUD)
+        {
+            active_room->cloud_timers[x] += dt;
+            if (active_room->cloud_timers[x] > 0.45f)
+                active_room->tiles[y][x] = TILE_EMPTY;
+        }
+    }
     combat_step(&game->combat, &game->arena, &p1_cmd, &p2_cmd, dt);
     game_update_room_push_from_kill(game);
 
