@@ -79,6 +79,7 @@ static void fighter_respawn_in_room(Fighter* fighter, const Room* room, i32 figh
     }
 
     fighter_reset_runtime(fighter);
+    fighter->state.invincibility_timer = 0.25f;
 
     if (fighter_index == 0) {
         fighter->state.pos = room->spawns.attacker_spawn;
@@ -242,6 +243,7 @@ void combat_reset_round(CombatState* combat, const Arena* arena)
         return;
     }
 
+    memset(combat->ground_swords, 0, sizeof(combat->ground_swords));
     combat->round_over = false;
     combat->winner_index = -1;
     combat->kill_happened = false;
@@ -342,15 +344,36 @@ void combat_step(
     fighter_integrate_velocity(p1, dt);
     fighter_integrate_velocity(p2, dt);
 
+    bool alive_before[2] = {p1->state.alive, p2->state.alive};
     fighter_resolve_world_collision(p1, room, dt);
     fighter_resolve_world_collision(p2, room, dt);
 
+    for (i32 i=0;i<MAX_PLAYERS;i++) {
+        GroundSword* sword=&combat->ground_swords[i];
+        if(!sword->active) continue;
+        f32 next_y=sword->pos.y+180.0f*dt;
+        if(room_get_tile(room,(i32)(sword->pos.x/TILE_SIZE),(i32)((next_y+PLAYER_HEIGHT)/TILE_SIZE))==TILE_EMPTY)
+            sword->pos.y=next_y;
+        for(i32 j=0;j<MAX_PLAYERS;j++) {
+            Fighter* f=&combat->fighters[j]; const PlayerCommand* cmd=j==0?p1_cmd:p2_cmd;
+            if(f->state.alive && !f->state.has_sword && !f->state.is_stunned && cmd->down_pressed &&
+               fabsf(f->state.pos.x-sword->pos.x)<32 && fabsf(f->state.pos.y-sword->pos.y)<48) {
+                f->state.has_sword=true;sword->active=false;break;
+            }
+        }
+    }
     combat_update_thrown_sword_physics(combat, room, dt);
     combat_resolve_thrown_sword_hits(combat);
     combat_resolve_attacks(combat);
     combat_check_fall_deaths(combat, room);
+    for(i32 i=0;i<MAX_PLAYERS;i++) if(alive_before[i] && !combat->fighters[i].state.alive) {
+        if(!combat->kill_happened) {
+            combat->kill_happened=true;combat->kill_attacker_index=-1;
+            combat->kill_victim_index=i;combat->kill_counts_for_progress=false;
+        }
+    }
     combat_update_respawns(combat, room, dt);
-    combat_resolve_facing(p1, p2);
+    /* Facing is controlled by movement, including during a chase. */
 
     combat_update_kill_priority_timer(combat, dt);
     combat_check_camera_distance_kill(combat, arena);

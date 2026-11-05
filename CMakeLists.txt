@@ -9,7 +9,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 find_package(SDL3 REQUIRED CONFIG)
 
 # Try to find SDL3_image, but don't fail if not found (will use BMP fallback)
-find_package(SDL3-image CONFIG)
+find_package(SDL3_image CONFIG)
 
 add_library(game_core STATIC
     src/engine/engine.c
@@ -60,8 +60,8 @@ target_link_libraries(game_app PRIVATE game_core)
 target_link_libraries(game_core PUBLIC SDL3::SDL3)
 
 # Link SDL3_image if found, and set compile definition
-if(SDL3-image_FOUND)
-    target_link_libraries(game_core PUBLIC SDL3-image::SDL3-image)
+if(SDL3_image_FOUND)
+    target_link_libraries(game_core PUBLIC SDL3_image::SDL3_image)
     target_compile_definitions(game_core PUBLIC GAME_HAS_SDL3_IMAGE=1)
     
     # Try to find SDL3_image headers
@@ -79,7 +79,7 @@ if(NOT MSVC AND NOT WIN32)
     target_link_libraries(game_core PUBLIC m)  
 endif()  
 
-option(GAME_BUILD_TESTS "Build legacy tests" OFF)
+option(GAME_BUILD_TESTS "Build regression and integration tests" ON)
 
 if (GAME_BUILD_TESTS)
     enable_testing()
@@ -97,6 +97,14 @@ if (GAME_BUILD_TESTS)
 
     target_link_libraries(game_tests PRIVATE game_core)
 
+    add_executable(regression_tests tests/test_regressions.c)
+    target_link_libraries(regression_tests PRIVATE game_core)
+    add_test(NAME regression_tests COMMAND regression_tests)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/regression-work)
+    set_tests_properties(regression_tests PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/regression-work)
+    add_executable(generation_tests tests/test_generation.c)
+    target_link_libraries(generation_tests PRIVATE game_core)
+    add_test(NAME generation_tests COMMAND generation_tests)
     add_test(NAME game_tests COMMAND game_tests)
     add_test(NAME architecture_rules COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/check_architecture.sh)
 endif()

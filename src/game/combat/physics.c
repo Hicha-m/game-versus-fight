@@ -1,41 +1,6 @@
 #include "combat_internal.h"
 #include "utils/utils.h"
-
-static bool room_ground_contact_at(
-    const Room* room,
-    f32 foot_x,
-    f32 feet_y,
-    f32 prev_feet_y,
-    bool falling,
-    f32* out_snap_y
-)
-{
-    i32 tx;
-    i32 ty;
-    TileType tile;
-    f32 tile_top;
-
-    if (!room || !out_snap_y) {
-        return false;
-    }
-
-    tx = (i32)(foot_x / TILE_SIZE);
-    ty = (i32)(feet_y / TILE_SIZE);
-    tile = room_get_tile(room, tx, ty);
-    tile_top = (f32)(ty * TILE_SIZE);
-
-    if (tile == TILE_SOLID) {
-        *out_snap_y = tile_top - PLAYER_HEIGHT;
-        return true;
-    }
-
-    if (tile == TILE_PLATFORM && falling && prev_feet_y <= tile_top + 0.01f) {
-        *out_snap_y = tile_top - PLAYER_HEIGHT;
-        return true;
-    }
-
-    return false;
-}
+#include <math.h>
 
 void combat_update_thrown_sword_physics(CombatState* combat, const Room* room, f32 dt)
 {
@@ -57,6 +22,11 @@ void combat_update_thrown_sword_physics(CombatState* combat, const Room* room, f
 
     sword->lifetime -= dt;
     if (sword->lifetime <= 0.0f) {
+        for (i32 i=0;i<MAX_PLAYERS;i++) if(!combat->ground_swords[i].active) {
+            combat->ground_swords[i].active=true;
+            combat->ground_swords[i].pos=(Vec2){clampf(sword->pos.x,0,room->width_tiles*TILE_SIZE-PLAYER_WIDTH), sword->pos.y};
+            break;
+        }
         sword->active = false;
         return;
     }
@@ -69,6 +39,11 @@ void combat_update_thrown_sword_physics(CombatState* combat, const Room* room, f
     room_width_px = (f32)(room->width_tiles * TILE_SIZE);
     room_height_px = (f32)(room->height_tiles * TILE_SIZE);
     if (sword->pos.x < 0.0f || sword->pos.x >= room_width_px || sword->pos.y < 0.0f || sword->pos.y >= room_height_px) {
+        for (i32 i=0;i<MAX_PLAYERS;i++) if(!combat->ground_swords[i].active) {
+            combat->ground_swords[i].active=true;
+            combat->ground_swords[i].pos=(Vec2){clampf(sword->pos.x,0,room->width_tiles*TILE_SIZE-PLAYER_WIDTH), sword->pos.y};
+            break;
+        }
         sword->active = false;
         return;
     }
@@ -78,6 +53,11 @@ void combat_update_thrown_sword_physics(CombatState* combat, const Room* room, f
     tile = room_get_tile(room, tx, ty);
 
     if (tile == TILE_SOLID) {
+        for (i32 i=0;i<MAX_PLAYERS;i++) if(!combat->ground_swords[i].active) {
+            combat->ground_swords[i].active=true;
+            combat->ground_swords[i].pos=(Vec2){clampf(sword->pos.x,0,room->width_tiles*TILE_SIZE-PLAYER_WIDTH), sword->pos.y};
+            break;
+        }
         sword->active = false;
         return;
     }
@@ -85,7 +65,12 @@ void combat_update_thrown_sword_physics(CombatState* combat, const Room* room, f
     if (tile == TILE_PLATFORM && sword->vel.y >= 0.0f) {
         f32 tile_top = (f32)(ty * TILE_SIZE);
         if (sword->pos.y <= tile_top + THROW_PROJECTILE_HEIGHT) {
-            sword->active = false;
+            for (i32 i=0;i<MAX_PLAYERS;i++) if(!combat->ground_swords[i].active) {
+            combat->ground_swords[i].active=true;
+            combat->ground_swords[i].pos=(Vec2){clampf(sword->pos.x,0,room->width_tiles*TILE_SIZE-PLAYER_WIDTH), sword->pos.y};
+            break;
+        }
+        sword->active = false;
         }
     }
 }
@@ -116,67 +101,46 @@ void fighter_integrate_velocity(Fighter* fighter, f32 dt)
     fighter->state.pos.y += fighter->state.vel.y * dt;
 }
 
-void fighter_resolve_world_collision(Fighter* fighter, const Room* room, f32 dt)
+static bool body_hits(const Room* room, f32 x, f32 y)
 {
-    f32 feet_x1;
-    f32 feet_x2;
-    f32 feet_y;
-    f32 prev_feet_y;
-    bool grounded_now;
-    bool falling;
-    bool hit1;
-    bool hit2;
-    f32 snap_y1;
-    f32 snap_y2;
-    f32 snap_y;
-    f32 room_max_x;
+    i32 x0=(i32)floorf(x/TILE_SIZE), x1=(i32)floorf((x+PLAYER_WIDTH-0.01f)/TILE_SIZE);
+    i32 y0=(i32)floorf(y/TILE_SIZE), y1=(i32)floorf((y+PLAYER_HEIGHT-0.01f)/TILE_SIZE);
+    for(i32 ty=y0;ty<=y1;ty++) for(i32 tx=x0;tx<=x1;tx++)
+        if(room_get_tile(room,tx,ty)==TILE_SOLID) return true;
+    return false;
+}
 
-    if (!fighter || !room || !fighter->state.alive) {
-        return;
-    }
-
-    grounded_now = false;
-
-    feet_x1 = fighter->state.pos.x + 2.0f;
-    feet_x2 = fighter->state.pos.x + PLAYER_WIDTH - 2.0f;
-    feet_y = fighter->state.pos.y + PLAYER_HEIGHT;
-    prev_feet_y = feet_y - (fighter->state.vel.y * dt);
-    falling = (fighter->state.vel.y >= 0.0f);
-
-    hit1 = room_ground_contact_at(room, feet_x1, feet_y, prev_feet_y, falling, &snap_y1);
-    hit2 = room_ground_contact_at(room, feet_x2, feet_y, prev_feet_y, falling, &snap_y2);
-
-    if (hit1 || hit2) {
-        if (hit1 && hit2) {
-            snap_y = (snap_y1 < snap_y2) ? snap_y1 : snap_y2;
-        } else {
-            snap_y = hit1 ? snap_y1 : snap_y2;
+void fighter_resolve_world_collision(Fighter* f, const Room* room, f32 dt)
+{
+    if(!f || !room || !f->state.alive || dt<=0) return;
+    f32 dx=f->state.vel.x*dt, dy=f->state.vel.y*dt;
+    f32 x=f->state.pos.x-dx, y=f->state.pos.y-dy;
+    i32 steps=(i32)ceilf(fmaxf(fabsf(dx),fabsf(dy))/4.0f); if(steps<1) steps=1;
+    bool grounded=false;
+    for(i32 i=0;i<steps;i++) {
+        f32 nx=x+dx/steps;
+        if(!body_hits(room,nx,y)) x=nx; else {dx=0;f->state.vel.x=0;}
+        f32 ny=y+dy/steps;
+        bool platform=false;
+        if(dy>=0) {
+            i32 row=(i32)floorf((ny+PLAYER_HEIGHT+0.01f)/TILE_SIZE);
+            for(i32 tx=(i32)floorf(x/TILE_SIZE);tx<=(i32)floorf((x+PLAYER_WIDTH-0.01f)/TILE_SIZE);tx++) {
+                TileType t=room_get_tile(room,tx,row);
+                if((t==TILE_PLATFORM || t==TILE_SOLID) && y+PLAYER_HEIGHT<=row*TILE_SIZE+0.01f && ny+PLAYER_HEIGHT>=row*TILE_SIZE) {
+                    ny=row*TILE_SIZE-PLAYER_HEIGHT;platform=true;
+                }
+            }
         }
-
-        fighter->state.pos.y = snap_y;
-        fighter->state.vel.y = 0.0f;
-        grounded_now = true;
+        if(platform || body_hits(room,x,ny)) {
+            if(dy>=0) grounded=true;
+            if(platform) y=ny;
+            dy=0;f->state.vel.y=0;
+        } else y=ny;
     }
-
-    if (grounded_now) {
-        if (!fighter->state.grounded) {
-            fighter->state.action = (fighter->state.vel.x != 0.0f) ? FIGHTER_ACTION_RUN : FIGHTER_ACTION_IDLE;
-        }
-        fighter->state.grounded = true;
-        fighter->state.coyote_time = DEFAULT_COYOTE_TIME;
-    } else {
-        if (fighter->state.grounded) {
-            fighter->state.action = FIGHTER_ACTION_FALL;
-        }
-        fighter->state.grounded = false;
-    }
-
-    if (fighter->state.pos.x < 0.0f) {
-        fighter->state.pos.x = 0.0f;
-    }
-
-    room_max_x = (f32)(room->width_tiles * TILE_SIZE) - PLAYER_WIDTH;
-    if (fighter->state.pos.x > room_max_x) {
-        fighter->state.pos.x = room_max_x;
-    }
+    f->state.pos.x=clampf(x,0,room->width_tiles*TILE_SIZE-PLAYER_WIDTH);
+    f->state.pos.y=y;
+    f->state.grounded=grounded;
+    if(grounded) f->state.coyote_time=DEFAULT_COYOTE_TIME;
+    i32 tx=(i32)floorf((x+PLAYER_WIDTH/2)/TILE_SIZE),ty=(i32)floorf((y+PLAYER_HEIGHT/2)/TILE_SIZE);
+    if(room_get_tile(room,tx,ty)==TILE_HAZARD) {f->state.alive=false;f->state.action=FIGHTER_ACTION_DEAD;}
 }

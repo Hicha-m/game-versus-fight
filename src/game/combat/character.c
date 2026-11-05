@@ -82,9 +82,13 @@ void fighter_apply_command(Fighter* fighter, const PlayerCommand* cmd, f32 dt)
     }
 
     if (fighter->state.is_stunned) {
-        fighter->state.vel.x = 0.0f;
+        fighter->state.vel.x *= 0.96f;
         fighter->state.move_hold_time = 0.0f;
         return;
+    }
+
+    if (cmd->set_sword_line && cmd->target_sword_line >= SWORD_LINE_HIGH && cmd->target_sword_line <= SWORD_LINE_LOW) {
+        fighter->state.sword_line = cmd->target_sword_line;
     }
 
     if (cmd->up_pressed) {
@@ -97,7 +101,7 @@ void fighter_apply_command(Fighter* fighter, const PlayerCommand* cmd, f32 dt)
         fighter->state.sword_line = line;
     }
 
-    if (cmd->thrust_pressed && fighter->state.grounded) {
+    if (cmd->thrust_pressed) {
         fighter->state.thrust_buffer_timer = THRUST_INPUT_BUFFER_TIME;
     }
 
@@ -150,6 +154,8 @@ void fighter_apply_command(Fighter* fighter, const PlayerCommand* cmd, f32 dt)
     }
 
     if (cmd->roll_pressed && fighter->state.grounded && !fighter->state.is_attacking) {
+        fighter->state.invincibility_timer = DEFAULT_ROLL_DURATION;
+        fighter->state.vel.x = fighter->state.facing_right ? fighter->stats.move_speed : -fighter->stats.move_speed;
         fighter->state.action = FIGHTER_ACTION_ROLL;
         fighter->state.action_duration = DEFAULT_ROLL_DURATION;
         fighter->state.action_time = 0.0f;

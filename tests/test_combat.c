@@ -56,6 +56,7 @@ static int test_combat_step_sword_hit_does_not_end_round(void) {
 	p1.thrust_pressed = true;
 	p1.target_sword_line = SWORD_LINE_MID;
 	p2.target_sword_line = SWORD_LINE_HIGH;
+	p2.set_sword_line = true;
 
 	combat_step(&combat, &arena, &p1, &p2, FIXED_DT);
 

@@ -61,7 +61,7 @@ static int test_ai_build_decision_state_and_think(void) {
 
 	i32 default_kills[MAX_PLAYERS] = {0, 0};
 	cmd = ai_think(&ai, &arena, &combat, 0, FIXED_DT, default_kills);
-	TEST_ASSERT_TRUE(cmd.move_x >= -1 && cmd.move_x <= 1);
+	TEST_ASSERT_TRUE(!(cmd.left_pressed && cmd.right_pressed));
 	TEST_ASSERT_TRUE(cmd.target_sword_line >= SWORD_LINE_HIGH && cmd.target_sword_line <= SWORD_LINE_LOW);
 	TEST_ASSERT_TRUE(ai.metrics.nodes_expanded > 0);
 	return 0;

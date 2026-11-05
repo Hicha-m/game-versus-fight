@@ -40,6 +40,7 @@ typedef struct PlayerCommand {
     bool thrust_pressed;
     bool throw_pressed;
     SwordLine target_sword_line;
+    bool set_sword_line;
 } PlayerCommand;
 
 typedef struct FighterStats {
@@ -97,7 +98,13 @@ typedef struct ThrownSword {
     f32 rotation_deg;
 } ThrownSword;
 
+typedef struct GroundSword {
+    bool active;
+    Vec2 pos;
+} GroundSword;
+
 typedef struct CombatState {
+    GroundSword ground_swords[MAX_PLAYERS];
     Fighter fighters[MAX_PLAYERS];
     f32 respawn_timers[MAX_PLAYERS];
     ThrownSword thrown_sword;

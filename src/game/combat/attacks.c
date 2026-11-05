@@ -16,7 +16,7 @@ static void combat_record_kill(CombatState* combat, i32 attacker_index, i32 vict
 
 static bool fighter_sword_is_lethal(const Fighter* fighter)
 {
-    if (!fighter || !fighter->state.alive || !fighter->state.has_sword) {
+    if (!fighter || !fighter->state.alive || !fighter->state.has_sword || fighter->state.is_stunned) {
         return false;
     }
 
@@ -109,7 +109,7 @@ static void try_apply_running_impale(
         return;
     }
 
-    if (!runner->state.alive || runner->state.action != FIGHTER_ACTION_RUN) {
+    if (!runner->state.alive || runner->state.invincibility_timer > 0 || runner->state.action != FIGHTER_ACTION_RUN) {
         return;
     }
 
@@ -167,15 +167,22 @@ static void apply_parry_or_hit(CombatState* combat, Fighter* attacker, Fighter* 
     bool attacker_armed = fighter_sword_is_lethal(attacker);
     bool defender_has_matching_sword =
         fighter_sword_is_lethal(defender) &&
-        defender->state.sword_line == attacker->state.sword_line;
+        defender->state.sword_line == attacker->state.sword_line &&
+        (defender->state.facing_right ? attacker->state.pos.x > defender->state.pos.x : attacker->state.pos.x < defender->state.pos.x);
 
-    if (!fighters_in_attack_range(attacker, defender, attacker_armed)) {
+    if (defender->state.invincibility_timer > 0 || !fighters_in_attack_range(attacker, defender, attacker_armed)) {
         return;
     }
 
     if (attacker_armed) {
         if (defender_has_matching_sword) {
+            for (i32 i=0;i<MAX_PLAYERS;i++) if (!combat->ground_swords[i].active) {
+                combat->ground_swords[i].active = true;
+                combat->ground_swords[i].pos = attacker->state.pos;
+                break;
+            }
             attacker->state.has_sword = false;
+            attacker->state.is_attacking = false;
             attacker->state.is_stunned = true;
             attacker->state.stun_timer = DEFAULT_STUN_DURATION * PARRY_STUN_MULTIPLIER;
             attacker->state.action = FIGHTER_ACTION_STUN;
@@ -190,8 +197,15 @@ static void apply_parry_or_hit(CombatState* combat, Fighter* attacker, Fighter* 
             combat_record_kill(combat, attacker_index, defender_index, true);
         }
     } else {
+        if (defender->state.is_stunned) {
+            defender->state.alive = false;
+            defender->state.action = FIGHTER_ACTION_DEAD;
+            combat_record_kill(combat, attacker_index, defender_index, true);
+            return;
+        }
         defender->state.is_stunned = true;
-        defender->state.stun_timer = DEFAULT_STUN_DURATION;
+        defender->state.stun_timer = DEFAULT_STUN_DURATION * 2.0f;
+        attacker->state.is_attacking = false;
         defender->state.action = FIGHTER_ACTION_STUN;
     }
 }
@@ -248,7 +262,7 @@ void combat_resolve_thrown_sword_hits(CombatState* combat)
             continue;
         }
 
-        defender_parry = fighter_sword_is_lethal(target) && target->state.sword_line == sword->line;
+        defender_parry = fighter_sword_is_lethal(target) && target->state.sword_line == sword->line && (target->state.facing_right ? sword->vel.x < 0 : sword->vel.x > 0);
         if (defender_parry) {
             target->state.is_parrying = true;
             sword->active = false;
@@ -283,13 +297,26 @@ void combat_resolve_attacks(CombatState* combat)
         try_apply_running_impale(combat, p2, p1, 1, 0);
     }
 
+    bool simultaneous = p1->state.alive && p2->state.alive && p1->state.is_attacking && p2->state.is_attacking;
+    Fighter before1 = *p1, before2 = *p2;
     if (p1->state.alive && p2->state.alive) {
         if (p1->state.is_attacking) {
             apply_parry_or_hit(combat, p1, p2, 0, 1);
         }
     }
 
-    if (p1->state.alive && p2->state.alive) {
+    if (simultaneous) {
+        Fighter result1 = *p1, result2 = *p2;
+        *p1 = before1; *p2 = before2;
+        apply_parry_or_hit(combat, p2, p1, 1, 0);
+        Fighter reverse1 = *p1, reverse2 = *p2;
+        *p1 = result1; *p2 = result2;
+        if (!reverse1.state.alive) p1->state = reverse1.state;
+        if (!reverse2.state.has_sword) p2->state = reverse2.state;
+        if (!p1->state.alive && !p2->state.alive) {
+            combat_record_kill(combat, -1, -1, false);
+        }
+    } else if (p1->state.alive && p2->state.alive) {
         if (p2->state.is_attacking) {
             apply_parry_or_hit(combat, p2, p1, 1, 0);
         }

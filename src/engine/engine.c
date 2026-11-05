@@ -72,6 +72,7 @@ Engine* engine_create(const EngineConfig* config)
     }
 
     input_set_default_keybinds(engine->keybinds);
+    SDL_SetRenderVSync(engine->renderer, 1);
     input_reset_frame(&engine->previous_input);
 
     engine->running = true;
@@ -204,4 +205,15 @@ f64 engine_counter_seconds(u64 counter_delta)
     }
 
     return (f64)counter_delta / (f64)freq;
+}
+
+void engine_set_keys(Engine* engine, const u16 keys[MAX_PLAYERS][7])
+{
+    if(!engine || !keys) return;
+    for(i32 i=0;i<MAX_PLAYERS;i++) {
+        bool valid=true; for(i32 j=0;j<7;j++) if(keys[i][j]>=SDL_SCANCODE_COUNT) valid=false;
+        if(!valid) continue;
+        engine->keybinds[i]=(PlayerKeybind){.right=keys[i][0],.left=keys[i][1],.up=keys[i][2],
+            .down=keys[i][3],.jump=keys[i][4],.thrust=keys[i][5],.throw_weapon=keys[i][6]};
+    }
 }

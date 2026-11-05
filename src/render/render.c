@@ -2,7 +2,7 @@
 
 #include "core/constants.h"
 #include "render/render.h"
-#include "render/assets.h"
+#include "assets_private.h"
 #include "render_internal.h"
 #include "utils/utils.h"
 #include "utils/log.h"
@@ -149,9 +149,14 @@ void render_update_camera(RenderContext* render, const Game* game)
     render->camera_target.x = target_x;
     render->camera_target.y = 0.0f;
 
+    static u64 last_camera_tick = 0;
+    u64 tick = SDL_GetTicks();
+    f32 elapsed = last_camera_tick ? fminf((tick-last_camera_tick)/1000.0f,0.1f) : 1.0f/60.0f;
+    last_camera_tick = tick;
+    f32 blend = 1.0f-powf(1.0f-render->camera_lerp_speed, elapsed*60.0f);
     render->camera.position.x =
         render->camera.position.x +
-        (render->camera_target.x - render->camera.position.x) * render->camera_lerp_speed;
+        (render->camera_target.x - render->camera.position.x) * blend;
     render->camera.position.y = 0.0f;
 }
 
@@ -268,6 +273,14 @@ static void render_draw_thrown_sword(RenderContext* render, Engine* engine, cons
         return;
     }
 
+    renderer = render_get_renderer(engine);
+    if (!renderer) return;
+    for(i32 i=0;i<MAX_PLAYERS;i++) if(combat->ground_swords[i].active) {
+        SDL_FRect ground={combat->ground_swords[i].pos.x-render->camera.position.x,
+            combat->ground_swords[i].pos.y+PLAYER_HEIGHT-5,24,4};
+        SDL_SetRenderDrawColor(renderer,230,230,230,255);
+        SDL_RenderFillRect(renderer,&ground);
+    }
     sword = &combat->thrown_sword;
     if (!sword->active) {
         return;

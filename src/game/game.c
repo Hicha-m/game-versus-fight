@@ -34,6 +34,8 @@ static u32 game_random_seed(void)
 void game_start_match(Game* game)
 {
     arena_set_middle_room(&game->arena);
+    memset(&game->match_stats, 0, sizeof(game->match_stats));
+    game->victory_winner_index = -1;
     game->room_push_direction = 0;
     game->phase = GAME_PHASE_MATCH;
     combat_reset_round(&game->combat, &game->arena);
@@ -71,6 +73,7 @@ static void game_update_room_push_from_kill(Game* game)
         game->combat.kill_attacker_index >= 0 &&
         game->combat.kill_attacker_index < MAX_PLAYERS) {
         game->room_push_direction = fighter_target_room_direction(game->combat.kill_attacker_index);
+        game->match_stats.kills[game->combat.kill_attacker_index]++;
     } else {
         game->room_push_direction = 0;
     }
@@ -84,11 +87,11 @@ static i32 game_check_victory(Game* game)
         return -1;
     }
 
-    if (game->arena.current_room == ROOM_COUNT - 1) {
+    if (game->arena.current_room == game->arena.room_count - 1 && game->room_push_direction > 0 && game->combat.fighters[0].state.alive && arena_get_current_room_const(&game->arena) && game->combat.fighters[0].state.pos.x + PLAYER_WIDTH >= arena_get_current_room_const(&game->arena)->transition.right_trigger_x) {
         return 0;
     }
 
-    if (game->arena.current_room == 0) {
+    if (game->arena.current_room == 0 && game->room_push_direction < 0 && game->combat.fighters[1].state.alive && game->combat.fighters[1].state.pos.x <= arena_get_current_room_const(&game->arena)->transition.left_trigger_x) {
         return 1;
     }
 
@@ -110,10 +113,11 @@ void game_build_player_command_from_input(
     out_cmd->down_pressed = input->actions[ACTION_DOWN].pressed;
     out_cmd->right_pressed = input->actions[ACTION_RIGHT].down;
     out_cmd->left_pressed = input->actions[ACTION_LEFT].down;
-    out_cmd->jump_pressed = input->actions[ACTION_JUMP].down;
+    out_cmd->jump_pressed = input->actions[ACTION_JUMP].pressed;
     out_cmd->thrust_pressed = input->actions[ACTION_THRUST].pressed;
     out_cmd->throw_pressed = input->actions[ACTION_THROW].pressed;
-    out_cmd->roll_pressed = false;
+    out_cmd->roll_pressed = input->actions[ACTION_DOWN].down && input->actions[ACTION_JUMP].pressed;
+    if (out_cmd->roll_pressed) out_cmd->jump_pressed = false;
     out_cmd->target_sword_line = SWORD_LINE_MID;
 }
 
@@ -163,19 +167,28 @@ void game_handle_room_transitions(Game* game)
 
     if (game->room_push_direction > 0) {
 
-        if (arena_can_transition_right(&game->arena, &p1->state.pos)) {
+        if (p1->state.alive && arena_can_transition_right(&game->arena, &p1->state.pos)) {
             moved = arena_transition_right(&game->arena);
         }
     } else if (game->room_push_direction < 0) {
 
-        if (arena_can_transition_left(&game->arena, &p2->state.pos)) {
+        if (p2->state.alive && arena_can_transition_left(&game->arena, &p2->state.pos)) {
             moved = arena_transition_left(&game->arena);
         }
     }
 
     if (moved) {
         game->match_stats.room_progress = game->arena.current_room;
-        combat_reset_round(&game->combat, &game->arena);
+        const Room* room = arena_get_current_room_const(&game->arena);
+        i32 runner = game->room_push_direction > 0 ? 0 : 1;
+        Fighter* f = &game->combat.fighters[runner];
+        f->state.pos.x = runner == 0 ? 16.0f : room->width_tiles * TILE_SIZE - PLAYER_WIDTH - 16.0f;
+        f->state.pos.y = room->spawns.attacker_spawn.y;
+        game->combat.fighters[1-runner].state.alive = false;
+        game->combat.fighters[1-runner].state.action = FIGHTER_ACTION_DEAD;
+        game->combat.respawn_timers[1-runner] = 0.0f;
+        game->combat.thrown_sword.active = false;
+        memset(game->combat.ground_swords, 0, sizeof(game->combat.ground_swords));
     }
 }
 
@@ -248,7 +261,7 @@ bool game_init(Game* game)
 
     game->combat.fighters[1].controller.type = CONTROLLER_AI;
     ai_set_difficulty(&game->ai_controllers[1], AI_DIFFICULTY_EXPERT);
-    ai_set_algorithm(&game->ai_controllers[1], AI_ALGO_MINIMAX_ALPHA_BETA);
+    ai_set_algorithm(&game->ai_controllers[1], AI_ALGO_SCRIPTED);
 
     return true;
 }
@@ -399,7 +412,7 @@ void game_update(Game* game, const FrameInput* input, f32 dt)
 
             game->match_stats.rounds_played++;
             game->match_stats.wins[winner]++;
-            game->match_stats.kills[winner]++;
+
 
             game->victory_winner_index = winner;
             game->phase = GAME_PHASE_VICTORY;

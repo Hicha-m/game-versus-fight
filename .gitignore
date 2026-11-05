@@ -7,3 +7,4 @@ build-tests
 *.log
 .vscode
 game_config.json
+build-sanitize/

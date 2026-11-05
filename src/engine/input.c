@@ -117,7 +117,7 @@ void input_set_default_keybinds(PlayerKeybind keybinds[MAX_PLAYERS])
     keybinds[1].left = SDL_SCANCODE_LEFT;
     keybinds[1].down = SDL_SCANCODE_DOWN;
     keybinds[1].up = SDL_SCANCODE_UP;
-    keybinds[1].jump = SDL_SCANCODE_RSHIFT;
-    keybinds[1].thrust = SDL_SCANCODE_M;
-    keybinds[1].throw_weapon = SDL_SCANCODE_KP_1;
+    keybinds[1].jump = SDL_SCANCODE_RETURN;
+    keybinds[1].thrust = SDL_SCANCODE_RCTRL;
+    keybinds[1].throw_weapon = SDL_SCANCODE_RSHIFT;
 }

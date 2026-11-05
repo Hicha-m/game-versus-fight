@@ -1,72 +1,73 @@
-# game-versus-fight
-Fight against a AI.
+# Blade Rush — game-versus-fight
 
-![Aperçu du jeu](https://raw.githubusercontent.com/Hicha-m/game-versus-fight/main/docs/jeux.png)
+Duel local ou contre l'IA, inspiré de la progression de Nidhogg.
+Gagner un échange donne le droit de progresser vers la sortie adverse.
 
-## Requirements
+## Compilation
 
-### Mandatory
+Dépendances : compilateur C11, CMake **3.25+** (presets version 6), SDL3 3.2+,
+et SDL3_image 3.2+ pour les PNG. Sans SDL3_image, seul le rendu BMP de secours
+est disponible. Installer les bibliothèques avec leurs fichiers de développement
+et renseigner `CMAKE_PREFIX_PATH` pour une installation locale.
 
-**CMake** (>= 3.16)
-- Build system (portable Windows/Linux/macOS)
-- Install: https://cmake.org/download/
-- Verify: `cmake --version`
-
-**C Compiler** (C11 or later)
-- GCC / Clang / MSVC
-- On Linux: `sudo apt install build-essential` (GCC/Clang)
-- On macOS: `xcode-select --install`
-- On Windows: MSVC (Visual Studio) or MinGW
-- Verify: `gcc --version` or `clang --version`
-
-
-**SDL3** (>= 3.0)
-- Rendering + input library
-- Install: https://github.com/libsdl-org/SDL/releases
-
-
-## Quick Start
-
-After cloning, verify the toolchain:
-
-```bash
-cmake --version       # Should show >= 3.16
-gcc --version         # or clang --version
-```
-
-Configure once, then build and run:
-
-```bash
+```sh
 cmake --preset dev
+cmake --build --preset build -j 8
 cmake --build --preset run
 ```
 
-This creates `build/`, compiles the project, and launches `game_app`.
+## Commandes par défaut
 
-## Build (Portable Linux/macOS/Windows)
+| Action | J1 | J2 |
+| --- | --- | --- |
+| Déplacement | A / D | Gauche / Droite |
+| Garde haute / basse | W / S | Haut / Bas |
+| Saut | Espace | Entrée |
+| Estoc / frappe | J | Ctrl droit |
+| Lancer | K | Maj droite |
+| Roulade | Bas + saut | Bas + saut |
+| Ramasser une épée proche | Bas | Bas |
+| Pause | Échap | Échap |
 
-Configuration (Debug):
+Sur clavier AZERTY, les codes physiques correspondent à Q/D et Z/S pour J1.
+La configuration `game_config.json` est relative au répertoire d'exécution.
+Les raccourcis sauvegardés sont chargés au démarrage. Le menu de raccourcis
+reste une consultation ; modifier le fichier pour changer les affectations.
 
-```bash
-cmake --preset dev
+## Règles
+
+Trois gardes : haute, médiane, basse. Une garde compatible face à une attaque
+pare et désarme l'attaquant. Les coups létaux simultanés peuvent tuer les deux
+combattants. À mains nues, une première frappe étourdit ; une autre frappe
+pendant cet étourdissement achève l'adversaire. Les épées désarmées ou tombées
+après un lancer peuvent être ramassées. Une roulade donne une brève esquive.
+
+La progression exige un combattant vivant ayant gagné l'avantage. Le coureur
+conserve son équipement au passage de salle ; le défenseur réapparaît après
+un délai. Il faut atteindre la sortie de la salle terminale pour gagner.
+Une nouvelle partie remet les statistiques à zéro.
+
+## Tests
+
+```sh
+cmake -S . -B build-tests -DGAME_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-tests -j 8
+SDL_VIDEODRIVER=dummy SDL_RENDER_DRIVER=software ctest --test-dir build-tests --output-on-failure
 ```
 
-Build only:
+Quatre cibles : régressions de gameplay/configuration, génération, suite des
+modules et règles d'architecture. Le test de génération historique est un
+smoke test ; il ne prouve pas que chaque niveau est franchissable.
 
-```bash
-cmake --build --preset build
-```
+## Limites actuelles
 
-Build and run:
+Le jeu reste un prototype, pas une reproduction complète de Nidhogg. Les sprites
+sont encore essentiellement statiques. Le système audio n'est pas implémenté ;
+les valeurs de volume du menu sont seulement persistées. L'IA réactive est le
+mode par défaut ; les variantes de recherche restent expérimentales et leur
+simulation abstraite ne reproduit pas toute la physique. Les niveaux procéduraux
+ne disposent pas encore d'une preuve de franchissabilité par simulation.
 
-```bash
-cmake --build --preset run
-```
-
-Run tests:
-
-```bash
-ctest --preset test
-```
-
-Optional Make shortcuts (Linux/macOS or environments with `make`)
+Les tests sans affichage ne remplacent pas une partie interactive à deux.
+Voir [la validation des corrections](docs/validation.md) et
+[les dépendances](docs/dependance.md).

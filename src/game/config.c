@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
-#include <SDL3/SDL.h>
+
 
 #include "game/config.h"
 #include "utils/log.h"
@@ -9,25 +10,25 @@
 static void keybind_set_defaults_p1(PlayerKeybindConfig* kb)
 {
     if (!kb) return;
-    kb->keys[ACTION_RIGHT] = SDL_SCANCODE_D;
-    kb->keys[ACTION_LEFT] = SDL_SCANCODE_A;
-    kb->keys[ACTION_UP] = SDL_SCANCODE_W;
-    kb->keys[ACTION_DOWN] = SDL_SCANCODE_S;
-    kb->keys[ACTION_JUMP] = SDL_SCANCODE_SPACE;
-    kb->keys[ACTION_THRUST] = SDL_SCANCODE_J;
-    kb->keys[ACTION_THROW] = SDL_SCANCODE_K;
+    kb->keys[ACTION_RIGHT] = 7;
+    kb->keys[ACTION_LEFT] = 4;
+    kb->keys[ACTION_UP] = 26;
+    kb->keys[ACTION_DOWN] = 22;
+    kb->keys[ACTION_JUMP] = 44;
+    kb->keys[ACTION_THRUST] = 13;
+    kb->keys[ACTION_THROW] = 14;
 }
 
 static void keybind_set_defaults_p2(PlayerKeybindConfig* kb)
 {
     if (!kb) return;
-    kb->keys[ACTION_RIGHT] = SDL_SCANCODE_RIGHT;
-    kb->keys[ACTION_LEFT] = SDL_SCANCODE_LEFT;
-    kb->keys[ACTION_UP] = SDL_SCANCODE_UP;
-    kb->keys[ACTION_DOWN] = SDL_SCANCODE_DOWN;
-    kb->keys[ACTION_JUMP] = SDL_SCANCODE_RETURN;
-    kb->keys[ACTION_THRUST] = SDL_SCANCODE_RCTRL;
-    kb->keys[ACTION_THROW] = SDL_SCANCODE_RSHIFT;
+    kb->keys[ACTION_RIGHT] = 79;
+    kb->keys[ACTION_LEFT] = 80;
+    kb->keys[ACTION_UP] = 82;
+    kb->keys[ACTION_DOWN] = 81;
+    kb->keys[ACTION_JUMP] = 40;
+    kb->keys[ACTION_THRUST] = 228;
+    kb->keys[ACTION_THROW] = 229;
 }
 
 void config_set_defaults(GameConfig* config)
@@ -58,6 +59,8 @@ bool config_validate(const GameConfig* config)
         return false;
     }
 
+    if (!isfinite(config->master_volume) || !isfinite(config->music_volume) || !isfinite(config->sfx_volume)) return false;
+    for(i32 p=0;p<MAX_PLAYERS;p++) for(i32 a=0;a<ACTION_COUNT;a++) if(config->keybinds[p].keys[a]>=512) return false;
     if (config->master_volume < 0.0f || config->master_volume > 1.0f) {
         return false;
     }
@@ -80,6 +83,7 @@ bool config_load(GameConfig* config)
     FILE* f;
     char buffer[2048];
     i32 ai_diff, fullscreen;
+    i32 player = 0;
     char fullscreen_token[16];
 
     if (!config) {
@@ -125,21 +129,16 @@ bool config_load(GameConfig* config)
             continue;
         }
 
-        for (i32 i = 0; i < ACTION_COUNT; i++) {
-            i32 scancode;
-            if (sscanf(buffer, "      \"key_%d\": %d", &i, &scancode) == 2 && i < ACTION_COUNT) {
-                config->keybinds[0].keys[i] = (u16)scancode;
-                break;
+        if (strstr(buffer, "\"player1\"")) player = 0;
+        if (strstr(buffer, "\"player2\"")) player = 1;
+        i32 action, scancode;
+        if (sscanf(buffer, "      \"key_%d\": %d", &action, &scancode) == 2) {
+            if (action < 0 || action >= ACTION_COUNT || scancode < 0 || scancode >= 512) {
+                fclose(f); config_set_defaults(config); return false;
             }
+            config->keybinds[player].keys[action] = (u16)scancode;
         }
 
-        for (i32 i = 0; i < ACTION_COUNT; i++) {
-            i32 scancode;
-            if (sscanf(buffer, "      \"key_%d\": %d", &i, &scancode) == 2 && i < ACTION_COUNT) {
-                config->keybinds[1].keys[i] = (u16)scancode;
-                break;
-            }
-        }
     }
 
     fclose(f);

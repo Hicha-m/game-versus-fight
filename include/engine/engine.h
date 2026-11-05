@@ -27,4 +27,6 @@ void* engine_get_renderer_handle(Engine* engine);
 u64 engine_now_counter(void);
 f64 engine_counter_seconds(u64 counter_delta);
 
+void engine_set_keys(Engine* engine, const u16 keys[MAX_PLAYERS][7]);
+
 #endif

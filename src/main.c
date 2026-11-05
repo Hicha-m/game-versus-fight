@@ -40,6 +40,10 @@ int main(void)
         return 1;
     }
 
+    u16 keys[MAX_PLAYERS][7];
+    for(i32 p=0;p<MAX_PLAYERS;p++) for(i32 a=0;a<ACTION_COUNT;a++) keys[p][a]=game_config.keybinds[p].keys[a];
+    engine_set_keys(engine, (const u16 (*)[7])keys);
+
     if (!render_init(&render, engine)) {
         log_error("render_init failed");
         engine_destroy(engine);

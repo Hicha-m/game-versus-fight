@@ -456,6 +456,7 @@ PlayerCommand ai_action_to_command(AIAction action)
     PlayerCommand cmd;
     memset(&cmd, 0, sizeof(cmd));
     cmd.target_sword_line = SWORD_LINE_MID;
+    cmd.set_sword_line = (action == AI_ACTION_LINE_HIGH || action == AI_ACTION_LINE_MID || action == AI_ACTION_LINE_LOW);
 
     switch (action) {
         case AI_ACTION_ADVANCE:
@@ -478,6 +479,7 @@ PlayerCommand ai_action_to_command(AIAction action)
             break;
         case AI_ACTION_LINE_MID:
             cmd.target_sword_line = SWORD_LINE_MID;
+    cmd.set_sword_line = (action == AI_ACTION_LINE_HIGH || action == AI_ACTION_LINE_MID || action == AI_ACTION_LINE_LOW);
             break;
         case AI_ACTION_THROW:
             cmd.throw_pressed = true;
@@ -738,6 +740,26 @@ PlayerCommand ai_think(
         depth = difficulty_to_depth(AI_DIFFICULTY_MEDIUM);
     }
 
+    if (ai && ai->algorithm == AI_ALGO_SCRIPTED) {
+        PlayerCommand cmd = {0};
+        const Fighter* self=&combat->fighters[self_index];
+        const Fighter* enemy=&combat->fighters[1-self_index];
+        if(!self->state.alive) return cmd;
+        f32 dx=enemy->state.pos.x-self->state.pos.x;
+        i32 direction=enemy->state.alive ? (dx>0?1:-1) : (self_index==0?1:-1);
+        cmd.right_pressed=direction>0;cmd.left_pressed=direction<0;
+        cmd.set_sword_line=true;
+        cmd.target_sword_line=(SwordLine)((enemy->state.sword_line+1)%3);
+        cmd.thrust_pressed=enemy->state.alive && fabsf(dx)<55 && self->state.attack_cooldown<=0;
+        const Room* room=arena_get_current_room_const(arena);
+        if(room) {
+            i32 tx=(i32)((self->state.pos.x+PLAYER_WIDTH/2+direction*40)/TILE_SIZE);
+            i32 ty=(i32)((self->state.pos.y+PLAYER_HEIGHT+8)/TILE_SIZE);
+            cmd.jump_pressed=self->state.grounded && room_get_tile(room,tx,ty)==TILE_EMPTY;
+        }
+        if(!self->state.has_sword) cmd.down_pressed=true;
+        return cmd;
+    }
     ai_build_decision_state(&state, arena, combat, self_index);
 
     start_ms = now_ms();
@@ -826,10 +848,10 @@ PlayerCommand ai_think(
 
                 if (height_diff < -15.0f) {
 
-                    best_cmd.target_sword_line = SWORD_LINE_HIGH;
+                    best_cmd.set_sword_line = true; best_cmd.target_sword_line = SWORD_LINE_HIGH;
                 } else if (height_diff > 15.0f) {
 
-                    best_cmd.target_sword_line = SWORD_LINE_LOW;
+                    best_cmd.set_sword_line = true; best_cmd.target_sword_line = SWORD_LINE_LOW;
                 } else {
 
                     best_cmd.target_sword_line = SWORD_LINE_MID;
@@ -840,9 +862,9 @@ PlayerCommand ai_think(
                     static i32 combo_counter = 0;
                     combo_counter++;
                     switch (combo_counter % 3) {
-                        case 0: best_cmd.target_sword_line = SWORD_LINE_HIGH; break;
+                        case 0: best_cmd.set_sword_line = true; best_cmd.target_sword_line = SWORD_LINE_HIGH; break;
                         case 1: best_cmd.target_sword_line = SWORD_LINE_MID; break;
-                        case 2: best_cmd.target_sword_line = SWORD_LINE_LOW; break;
+                        case 2: best_cmd.set_sword_line = true; best_cmd.target_sword_line = SWORD_LINE_LOW; break;
                     }
                 } else if (mode == AI_MODE_TACTICAL && fabsf(dx) < 1.5f) {
 

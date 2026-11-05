@@ -1,5 +1,5 @@
-#include "render/assets.h"
-#include "engine/sdl3_image_compat.h"
+#include "assets_private.h"
+#include "sdl3_image_compat.h"
 
 #include <stdio.h>
 #include <string.h>
