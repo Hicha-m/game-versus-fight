@@ -9,7 +9,8 @@
 #include "ui/menu.h"
 #include "game/config.h"
 
-typedef struct MatchStats {
+typedef struct MatchStats
+{
     i32 rounds_played;
     i32 wins[MAX_PLAYERS];
     i32 kills[MAX_PLAYERS];
@@ -17,7 +18,10 @@ typedef struct MatchStats {
     i32 room_progress;
 } MatchStats;
 
-typedef struct Game {
+typedef struct Game
+{
+    u32 audio_events;
+    bool quit_requested;
     GamePhase phase;
 
     MenuContext menu;
@@ -30,16 +34,17 @@ typedef struct Game {
 
     i32 room_push_direction;
     i32 victory_winner_index;
+    f32 victory_time;
 } Game;
 
-bool game_init(Game* game);
-void game_shutdown(Game* game);
+bool game_init(Game *game);
+void game_shutdown(Game *game);
 
-void game_update(Game* game, const FrameInput* input, f32 dt);
+void game_update(Game *game, const FrameInput *input, f32 dt);
 
-void game_set_arena_options(Game* game, const ArenaOptions* options);
-bool game_regenerate_arena(Game* game);
+void game_set_arena_options(Game *game, const ArenaOptions *options);
+bool game_regenerate_arena(Game *game);
 
-bool game_is_quit_requested(void);
+bool game_is_quit_requested(const Game *game);
 
 #endif

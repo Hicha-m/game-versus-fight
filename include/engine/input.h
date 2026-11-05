@@ -4,13 +4,15 @@
 #include "core/types.h"
 #include "core/constants.h"
 
-typedef struct InputState {
+typedef struct InputState
+{
     bool down;
     bool pressed;
     bool released;
 } InputState;
 
-typedef enum {
+typedef enum
+{
     ACTION_RIGHT,
     ACTION_LEFT,
     ACTION_UP,
@@ -22,18 +24,21 @@ typedef enum {
     ACTION_COUNT
 } ACTION;
 
-typedef struct {
-    InputState actions [ACTION_COUNT];
+typedef struct
+{
+    InputState actions[ACTION_COUNT];
 } PlayerInput;
 
-typedef struct FrameInput {
+typedef struct FrameInput
+{
     PlayerInput players[MAX_PLAYERS];
     InputState pause;
     bool quit_requested;
+    u16 key_pressed; /* Physical key event, zero means none. */
 } FrameInput;
 
-void input_reset_frame(FrameInput* input);
-void input_clear_edges(FrameInput* input);
-void input_accumulate_frame(FrameInput* accumulated, const FrameInput* sampled);
+void input_reset_frame(FrameInput *input);
+void input_clear_edges(FrameInput *input);
+void input_accumulate_frame(FrameInput *accumulated, const FrameInput *sampled);
 
 #endif

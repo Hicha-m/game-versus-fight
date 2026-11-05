@@ -5,7 +5,8 @@
 #include "game/arena/arena.h"
 #include "game/combat/combat.h"
 
-typedef struct AIHeuristicWeights {
+typedef struct AIHeuristicWeights
+{
     f32 distance_weight;
     f32 sword_advantage_weight;
     f32 height_advantage_weight;
@@ -15,7 +16,8 @@ typedef struct AIHeuristicWeights {
     f32 stun_penalty_weight;
 } AIHeuristicWeights;
 
-typedef struct AIMetrics {
+typedef struct AIMetrics
+{
     u64 nodes_expanded;
     u64 leaves_evaluated;
     u64 cutoffs;
@@ -24,7 +26,8 @@ typedef struct AIMetrics {
     u64 estimated_memory_bytes;
 } AIMetrics;
 
-typedef struct AIDecisionState {
+typedef struct AIDecisionState
+{
     i32 current_room;
     i32 room_count;
 
@@ -52,7 +55,10 @@ typedef struct AIDecisionState {
     bool enemy_can_thrust;
 } AIDecisionState;
 
-typedef struct AIController {
+typedef struct AIController
+{
+    f32 decision_timer;
+    PlayerCommand cached_command;
     bool enabled;
 
     AIDifficulty difficulty;
@@ -66,34 +72,24 @@ typedef struct AIController {
     AIMetrics metrics;
 } AIController;
 
-bool ai_init(AIController* ai);
-void ai_shutdown(AIController* ai);
+bool ai_init(AIController *ai);
+void ai_shutdown(AIController *ai);
 
-void ai_default_weights(AIHeuristicWeights* out_weights);
+void ai_default_weights(AIHeuristicWeights *out_weights);
 
-void ai_set_difficulty(AIController* ai, AIDifficulty difficulty);
-void ai_set_algorithm(AIController* ai, AIAlgorithm algorithm);
-void ai_set_gameplay_mode(AIController* ai, AIGameplayMode mode);
-void ai_reset_metrics(AIController* ai);
+void ai_set_difficulty(AIController *ai, AIDifficulty difficulty);
+void ai_set_algorithm(AIController *ai, AIAlgorithm algorithm);
+void ai_set_gameplay_mode(AIController *ai, AIGameplayMode mode);
+void ai_reset_metrics(AIController *ai);
 
-void ai_weights_for_mode(AIHeuristicWeights* out_weights, AIGameplayMode mode);
+void ai_weights_for_mode(AIHeuristicWeights *out_weights, AIGameplayMode mode);
 
-void ai_build_decision_state(
-    AIDecisionState* out_state,
-    const Arena* arena,
-    const CombatState* combat,
-    i32 self_index
-);
+void ai_build_decision_state(AIDecisionState *out_state, const Arena *arena,
+                             const CombatState *combat, i32 self_index);
 
-f32 ai_evaluate_state(const AIDecisionState* state, const AIHeuristicWeights* weights);
+f32 ai_evaluate_state(const AIDecisionState *state, const AIHeuristicWeights *weights);
 
-PlayerCommand ai_think(
-    AIController* ai,
-    const Arena* arena,
-    const CombatState* combat,
-    i32 self_index,
-    f32 dt,
-    const i32* player_kills
-);
+PlayerCommand ai_think(AIController *ai, const Arena *arena, const CombatState *combat,
+                       i32 self_index, f32 dt, const i32 *player_kills);
 
 #endif

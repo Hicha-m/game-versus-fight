@@ -3,71 +3,81 @@
 #include "game/arena/arena.h"
 #include "arena_internal.h"
 
-static u32 lcg_next(u32* state)
+static u32 lcg_next(u32 *state)
 {
     *state = (*state * 1664525u) + 1013904223u;
     return *state;
 }
 
-void room_fill(Room* room, TileType type)
+void room_fill(Room *room, TileType type)
 {
     i32 y;
     i32 x;
 
-    if (!room) {
+    if (!room)
+    {
         return;
     }
 
-    for (y = 0; y < ROOM_HEIGHT_TILES; ++y) {
-        for (x = 0; x < ROOM_MAX_WIDTH_TILES; ++x) {
+    for (y = 0; y < ROOM_HEIGHT_TILES; ++y)
+    {
+        for (x = 0; x < ROOM_MAX_WIDTH_TILES; ++x)
+        {
             room->tiles[y][x] = type;
         }
     }
 }
 
-void room_build_floor(Room* room, i32 floor_row)
+void room_build_floor(Room *room, i32 floor_row)
 {
     i32 x;
 
-    if (!room || floor_row < 0 || floor_row >= room->height_tiles) {
+    if (!room || floor_row < 0 || floor_row >= room->height_tiles)
+    {
         return;
     }
 
-    for (x = 0; x < room->width_tiles; ++x) {
+    for (x = 0; x < room->width_tiles; ++x)
+    {
         room->tiles[floor_row][x] = TILE_SOLID;
-        if (floor_row + 1 < room->height_tiles) {
+        if (floor_row + 1 < room->height_tiles)
+        {
             room->tiles[floor_row + 1][x] = TILE_SOLID;
         }
     }
 }
 
-void room_build_platform(Room* room, i32 y, i32 x0, i32 x1)
+void room_build_platform(Room *room, i32 y, i32 x0, i32 x1)
 {
     i32 x;
 
-    if (!room || y < 0 || y >= room->height_tiles) {
+    if (!room || y < 0 || y >= room->height_tiles)
+    {
         return;
     }
 
-    if (x0 < 0) x0 = 0;
-    if (x1 >= room->width_tiles) x1 = room->width_tiles - 1;
+    if (x0 < 0)
+        x0 = 0;
+    if (x1 >= room->width_tiles)
+        x1 = room->width_tiles - 1;
 
-    for (x = x0; x <= x1; ++x) {
+    for (x = x0; x <= x1; ++x)
+    {
         room->tiles[y][x] = TILE_PLATFORM;
     }
 }
 
-bool room_is_inside(const Room* room, i32 tx, i32 ty)
+bool room_is_inside(const Room *room, i32 tx, i32 ty)
 {
-    if (!room) {
+    if (!room)
+    {
         return false;
     }
 
-    return (tx >= 0 && tx < room->width_tiles &&
-            ty >= 0 && ty < room->height_tiles);
+    return (tx >= 0 && tx < room->width_tiles && ty >= 0 && ty < room->height_tiles);
 }
 
-static void room_setup_base(Room* room, RoomType type, RoomDirection direction, i32 width_tiles)
+static void room_setup_base(Room *room, RoomType type, RoomDirection direction, i32 width_tiles)
 {
     room->type = type;
     room->direction = direction;
@@ -81,15 +91,17 @@ static void room_setup_base(Room* room, RoomType type, RoomDirection direction, 
     room->transition.right_trigger_x = (f32)(width_tiles * TILE_SIZE - 12);
 
     room->spawns.attacker_spawn.x = 4.0f * TILE_SIZE;
-    room->spawns.attacker_spawn.y = (f32)((ROOM_HEIGHT_TILES - 3) * TILE_SIZE) - PLAYER_HEIGHT;
+    room->spawns.attacker_spawn.y = (f32)((ROOM_HEIGHT_TILES - 2) * TILE_SIZE) - PLAYER_HEIGHT;
 
-    room->spawns.defender_spawn.x = (f32)((width_tiles - 5) * TILE_SIZE);
-    room->spawns.defender_spawn.y = (f32)((ROOM_HEIGHT_TILES - 3) * TILE_SIZE) - PLAYER_HEIGHT;
+    room->spawns.defender_spawn.x =
+        (f32)(((width_tiles - 5) < 18 ? width_tiles - 5 : 18) * TILE_SIZE);
+    room->spawns.defender_spawn.y = (f32)((ROOM_HEIGHT_TILES - 2) * TILE_SIZE) - PLAYER_HEIGHT;
 }
 
-bool arena_init(Arena* arena)
+bool arena_init(Arena *arena)
 {
-    if (!arena) {
+    if (!arena)
+    {
         return false;
     }
 
@@ -99,16 +111,17 @@ bool arena_init(Arena* arena)
     return true;
 }
 
-void arena_shutdown(Arena* arena)
+void arena_shutdown(Arena *arena)
 {
     (void)arena;
 }
 
-void arena_build_default(Arena* arena)
+void arena_build_default(Arena *arena)
 {
-    Room* r;
+    Room *r;
 
-    if (!arena) {
+    if (!arena)
+    {
         return;
     }
 
@@ -139,20 +152,22 @@ void arena_build_default(Arena* arena)
     room_build_platform(r, 13, 22, 30);
 }
 
-void arena_generate_corridor(Arena* arena, u32 seed)
+void arena_generate_corridor(Arena *arena, u32 seed)
 {
     i32 i;
     u32 s = seed;
 
-    if (!arena) {
+    if (!arena)
+    {
         return;
     }
 
     arena->room_count = ROOM_COUNT;
     arena->current_room = ROOM_COUNT / 2;
 
-    for (i = 0; i < ROOM_COUNT; ++i) {
-        Room* r = &arena->rooms[i];
+    for (i = 0; i < ROOM_COUNT; ++i)
+    {
+        Room *r = &arena->rooms[i];
         RoomType type;
         i32 width_tiles = ROOM_DEFAULT_WIDTH_TILES + (i % 3) * 6;
         i32 p0;
@@ -160,12 +175,8 @@ void arena_generate_corridor(Arena* arena, u32 seed)
 
         type = (RoomType)i;
 
-        room_setup_base(
-            r,
-            type,
-            (i <= 3) ? ROOM_DIR_LEFT_TO_RIGHT : ROOM_DIR_RIGHT_TO_LEFT,
-            width_tiles
-        );
+        room_setup_base(r, type, (i <= 3) ? ROOM_DIR_LEFT_TO_RIGHT : ROOM_DIR_RIGHT_TO_LEFT,
+                        width_tiles);
 
         p0 = 6 + (i32)(lcg_next(&s) % 10u);
         p1 = p0 + 6 + (i32)(lcg_next(&s) % 8u);
@@ -174,37 +185,71 @@ void arena_generate_corridor(Arena* arena, u32 seed)
     }
 }
 
-bool arena_init_with_options(Arena* arena, const ArenaOptions* options)
+bool arena_init_with_options(Arena *arena, const ArenaOptions *options)
 {
-    if (!arena || !options) {
+    if (!arena || !options || options->theme < ARENA_THEME_CASTLE ||
+        options->theme > ARENA_THEME_CLOUDS || !arena_init(arena))
         return false;
-    }
-
-    if (!arena_init(arena)) {
-        return false;
-    }
-
-    switch (options->mode) {
+    switch (options->mode)
+    {
     case ARENA_MODE_DEFAULT:
-
         arena_build_default(arena);
-        return true;
-
+        for (i32 i = 0; i < ROOM_COUNT; i++)
+        {
+            Room *room = &arena->rooms[i];
+            room_setup_base(room, (RoomType)i,
+                            i < 3 ? ROOM_DIR_LEFT_TO_RIGHT : ROOM_DIR_RIGHT_TO_LEFT, 20);
+            room->spawns.attacker_spawn.x = room->width_tiles * TILE_SIZE * 0.40f;
+            room->spawns.defender_spawn.x = room->width_tiles * TILE_SIZE * 0.60f;
+            if (options->theme == ARENA_THEME_CASTLE)
+            {
+                for (i32 x = 7; x <= 12; x++)
+                    room->tiles[17][x] = TILE_SOLID;
+                room_build_platform(room, 17, 3, 5);
+                room_build_platform(room, 14, 14, 17);
+            }
+            else if (options->theme == ARENA_THEME_WILDS)
+            {
+                room_build_platform(room, 17, 5, 8);
+                room_build_platform(room, 14, 12, 15);
+                if (i != 2)
+                    for (i32 x = 10; x < 12; x++)
+                        for (i32 y = 20; y < ROOM_HEIGHT_TILES; y++)
+                            room->tiles[y][x] = TILE_EMPTY;
+            }
+            else if (options->theme == ARENA_THEME_MINES)
+            {
+                for (i32 y = 18; y < 20; y++)
+                {
+                    room->tiles[y][5] = TILE_SOLID;
+                    room->tiles[y][14] = TILE_SOLID;
+                }
+                room_build_platform(room, 17, 9, 11);
+            }
+            else
+            {
+                for (i32 x = 0; x < room->width_tiles; x++)
+                {
+                    room->tiles[20][x] = TILE_CLOUD;
+                    room->tiles[21][x] = TILE_EMPTY;
+                }
+                room_build_platform(room, 17, 5, 8);
+                room_build_platform(room, 14, 12, 15);
+            }
+        }
+        break;
     case ARENA_MODE_PROCEDURAL:
-
         arena_generate_next(arena, options->seed, options->difficulty);
-        return true;
-
+        break;
     case ARENA_MODE_CORRIDOR:
-
         arena_generate_corridor(arena, options->seed);
-        return true;
-
+        break;
     default:
-
-        arena_build_default(arena);
-        return true;
+        return false;
     }
+    for (i32 i = 0; i < arena->room_count; i++)
+        arena->rooms[i].theme = options->theme;
+    return true;
 }
 
 ArenaOptions arena_options_default(void)
@@ -234,52 +279,58 @@ ArenaOptions arena_options_corridor(u32 seed)
     return opts;
 }
 
-Room* arena_get_current_room(Arena* arena)
+Room *arena_get_current_room(Arena *arena)
 {
-    if (!arena || arena->current_room < 0 || arena->current_room >= arena->room_count) {
+    if (!arena || arena->current_room < 0 || arena->current_room >= arena->room_count)
+    {
         return NULL;
     }
 
     return &arena->rooms[arena->current_room];
 }
 
-const Room* arena_get_current_room_const(const Arena* arena)
+const Room *arena_get_current_room_const(const Arena *arena)
 {
-    if (!arena || arena->current_room < 0 || arena->current_room >= arena->room_count) {
+    if (!arena || arena->current_room < 0 || arena->current_room >= arena->room_count)
+    {
         return NULL;
     }
 
     return &arena->rooms[arena->current_room];
 }
 
-const Room* arena_get_room_const(const Arena* arena, i32 room_index)
+const Room *arena_get_room_const(const Arena *arena, i32 room_index)
 {
-    if (!arena || room_index < 0 || room_index >= arena->room_count) {
+    if (!arena || room_index < 0 || room_index >= arena->room_count)
+    {
         return NULL;
     }
 
     return &arena->rooms[room_index];
 }
 
-i32 arena_middle_room_index(const Arena* arena)
+i32 arena_middle_room_index(const Arena *arena)
 {
-    if (!arena || arena->room_count <= 0) {
+    if (!arena || arena->room_count <= 0)
+    {
         return 0;
     }
 
     return arena->room_count / 2;
 }
 
-bool arena_set_middle_room(Arena* arena)
+bool arena_set_middle_room(Arena *arena)
 {
     i32 middle;
 
-    if (!arena || arena->room_count <= 0) {
+    if (!arena || arena->room_count <= 0)
+    {
         return false;
     }
 
     middle = arena_middle_room_index(arena);
-    if (middle < 0 || middle >= arena->room_count) {
+    if (middle < 0 || middle >= arena->room_count)
+    {
         return false;
     }
 
@@ -287,22 +338,24 @@ bool arena_set_middle_room(Arena* arena)
     return true;
 }
 
-TileType room_get_tile(const Room* room, i32 tx, i32 ty)
+TileType room_get_tile(const Room *room, i32 tx, i32 ty)
 {
-    if (!room_is_inside(room, tx, ty)) {
+    if (!room_is_inside(room, tx, ty))
+    {
         return TILE_EMPTY;
     }
 
     return room->tiles[ty][tx];
 }
 
-bool room_is_solid_world(const Room* room, f32 world_x, f32 world_y)
+bool room_is_solid_world(const Room *room, f32 world_x, f32 world_y)
 {
     i32 tx;
     i32 ty;
     TileType tile;
 
-    if (!room) {
+    if (!room)
+    {
         return false;
     }
 
@@ -313,41 +366,46 @@ bool room_is_solid_world(const Room* room, f32 world_x, f32 world_y)
     return (tile == TILE_SOLID);
 }
 
-bool arena_can_transition_left(const Arena* arena, const Vec2* player_pos)
+bool arena_can_transition_left(const Arena *arena, const Vec2 *player_pos)
 {
-    const Room* room;
+    const Room *room;
 
-    if (!arena || !player_pos) {
+    if (!arena || !player_pos)
+    {
         return false;
     }
 
     room = arena_get_current_room_const(arena);
-    if (!room || arena->current_room <= 0) {
+    if (!room || arena->current_room <= 0)
+    {
         return false;
     }
 
     return (player_pos->x <= room->transition.left_trigger_x);
 }
 
-bool arena_can_transition_right(const Arena* arena, const Vec2* player_pos)
+bool arena_can_transition_right(const Arena *arena, const Vec2 *player_pos)
 {
-    const Room* room;
+    const Room *room;
 
-    if (!arena || !player_pos) {
+    if (!arena || !player_pos)
+    {
         return false;
     }
 
     room = arena_get_current_room_const(arena);
-    if (!room || arena->current_room >= arena->room_count - 1) {
+    if (!room || arena->current_room >= arena->room_count - 1)
+    {
         return false;
     }
 
     return (player_pos->x + PLAYER_WIDTH >= room->transition.right_trigger_x);
 }
 
-bool arena_transition_left(Arena* arena)
+bool arena_transition_left(Arena *arena)
 {
-    if (!arena || arena->current_room <= 0) {
+    if (!arena || arena->current_room <= 0)
+    {
         return false;
     }
 
@@ -355,9 +413,10 @@ bool arena_transition_left(Arena* arena)
     return true;
 }
 
-bool arena_transition_right(Arena* arena)
+bool arena_transition_right(Arena *arena)
 {
-    if (!arena || arena->current_room >= arena->room_count - 1) {
+    if (!arena || arena->current_room >= arena->room_count - 1)
+    {
         return false;
     }
 
